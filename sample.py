@@ -5,13 +5,16 @@ import pandas as pd
 from pysal.contrib.viz import mapping as maps  # might require basemap
 
 # extend max-P with this method which reorders regions in ascending order of 
-# the objective function (to show results better)
+# the objective function z (to show results better)
+# just uses mean z, nothing fancy
+# this is just for visualizations
+# but can we do something smarter?
 def sort_regions(self):
     sr = np.zeros([self.k,2])
     for region in range(0,self.k):
         sr[region][0] = region
         selectionIDs = [self.w.id_order.index(i) for i in self.regions[region]]
-        sr[region][1] = self.z[selectionIDs,:].mean() # this is really really simplistic TRUE -- SO HOW DO YOU IMPROVE IT
+        sr[region][1] = self.z[selectionIDs,:].mean()
     srdf = pd.DataFrame(sr)
     srdf = srdf.sort(columns=1)
     self.sorted_regions = dict()
@@ -45,7 +48,8 @@ maps.plot_choropleth(shp_link, births74, type='quantiles',
     title='Births', k=20)
 
 # run blobs to create a maximal number of homogeneous regions that each have 
-# at least 12,000 births -- WHY 12K?
+# at least 12,000 births (arbitrary threshold which tends to aggregate
+# counties by an order of magnitude)
 r=ps.Maxp(w, births7479, floor=12000, floor_variable=births74, initial=200)
 
 # prep for plotting
