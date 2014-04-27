@@ -11,7 +11,7 @@ def sort_regions(self):
     for region in range(0,self.k):
         sr[region][0] = region
         selectionIDs = [self.w.id_order.index(i) for i in self.regions[region]]
-        sr[region][1] = self.z[selectionIDs,:].mean() # this is really really simplistic
+        sr[region][1] = self.z[selectionIDs,:].mean() # this is really really simplistic TRUE -- SO HOW DO YOU IMPROVE IT
     srdf = pd.DataFrame(sr)
     srdf = srdf.sort(columns=1)
     self.sorted_regions = dict()
@@ -28,6 +28,7 @@ ps.Maxp.sort_regions = sort_regions
 # our example (which comes with PySAL) is the rate of sudden infant death
 # syndrome by counties in north carolina, 1974-1979
 # the rate seems to vary spatially, especially by urbanicity
+# LETS DO SOMETHING WITH OUR OWN DATA -- ALA CRIME
 
 shp_link = ps.examples.get_path('sids2.shp')  # shapefile
 w=ps.open(ps.examples.get_path('sids2.gal')).read()  # spatial weights
@@ -44,7 +45,7 @@ maps.plot_choropleth(shp_link, births74, type='quantiles',
     title='Births', k=20)
 
 # run blobs to create a maximal number of homogeneous regions that each have 
-# at least 12,000 births
+# at least 12,000 births -- WHY 12K?
 r=ps.Maxp(w, births7479, floor=12000, floor_variable=births74, initial=200)
 
 # prep for plotting
