@@ -89,11 +89,11 @@ all_vars = ['vehicles_per1000', 'alley_lights_per1000', 'garbage_per1000',
 
 # main blobs method
 
-def blobs(v=['all'], min_pop, iterations=10, method='equal votes', weights=[], 
+def blobs(v, min_pop, iterations=10, method='equal votes', weights=[], 
     initial=10, plot=True):
     # usage:
-    #   v: array of variables on which to create blobs (all variables by default)
-    #   min_pop: minimum population in each blob (no default)
+    #   v: array of variables on which to create blobs (for all variables, use ['all'])
+    #   min_pop: minimum population in each blob
     #   iterations: number of blobs solutions to create (will return best): 10 by default
     #   method: 'equal votes' by default, can change to 'weighted'
     #   weights: if method='weighted', add weights for variables as an array
