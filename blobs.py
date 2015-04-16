@@ -1,11 +1,12 @@
-### blobs code
+### blobs code, v0.1
 ### jgiuffrida@uchicago.edu
-### April 2015
+### 4/15/15
 
 ###########
 ### PREP (run to end)
 ###########
 
+# import modules and data
 import pysal as ps
 import numpy as np
 import pandas as pd
@@ -25,11 +26,13 @@ calls = pd.read_csv('master311.csv', dtype=object)
 for c in calls.columns[1:]:
     calls[c] = calls[c].astype('float')
 
+# format data and merge on shapefile IDs
 ordered_tracts = pd.DataFrame(df.loc[:,['tractce10', 'commarea', 'order']])
 calls = pd.merge(calls, ordered_tracts, how='right', left_on='tract', 
     right_on='tractce10', sort=False).fillna(0)
 calls = calls.sort(['order'])
 
+# histogram helper function
 def hist(data, title='', bins=20):
     hist, bins = np.histogram(data, bins=20)
     width = 0.7 * (bins[1] - bins[0])
@@ -38,6 +41,7 @@ def hist(data, title='', bins=20):
     plt.title(title)
     plt.show()
 
+# helper function to determine how to color choropleth
 def sort_regions(self, method='objective'):
     sr = np.zeros([self.k,2])
     for region in range(0,r.k):
@@ -56,6 +60,8 @@ def sort_regions(self, method='objective'):
         self.sorted_regions[int(srdf[i:i+1][0])] = i
 
 ps.Maxp.sort_regions = sort_regions
+
+# helper function to assign weights to variables
 def format_blobs(data, option='default', weights=None):
     if option == 'default':
         # use max p as originally designed
@@ -63,34 +69,51 @@ def format_blobs(data, option='default', weights=None):
         return data
     elif option == 'equal votes':
         # give equal weight to all variables by standardizing them
-        x = np.zeros(blob_vars.shape)
-        for v in range(0, blob_vars.shape[1]):
-            x[:,v] = (blob_vars[:,v] - np.mean(blob_vars[:,v])) / np.std(blob_vars[:,v])
+        x = np.zeros(data.shape)
+        for v in range(0, data.shape[1]):
+            x[:,v] = (data[:,v] - np.mean(data[:,v])) / np.std(data[:,v])
         return x
     elif option == 'weighted':
         # assign explicit weights to standardized variables
-        x = np.zeros(blob_vars.shape)
-        for v in range(0, blob_vars.shape[1]):
-            x[:,v] = ((blob_vars[:,v] - np.mean(blob_vars[:,v])) / \
-                np.std(blob_vars[:,v])) * np.sqrt(weights[v])
+        x = np.zeros(data.shape)
+        for v in range(0, data.shape[1]):
+            x[:,v] = ((data[:,v] - np.mean(data[:,v])) / \
+                np.std(data[:,v])) * np.sqrt(weights[v])
         return x
 
-v = ['vehicles_per1000', 'alley_lights_per1000', 'garbage_per1000',
+# vector of variable names
+all_vars = ['vehicles_per1000', 'alley_lights_per1000', 'garbage_per1000',
     'graffiti_per1000', 'potholes_per1000', 'rodents_per1000', 
     'sanitation_per1000', 'street_lights_one_per1000', 'street_lights_all_per1000', 
     'tree_debris_per1000', 'tree_trims_per1000', 'buildings_per1000']
-blob_vars = np.array(calls.loc[:,v], np.float64)
 
-def blobs(vars, min_pop, iterations, method='equal votes', weights=[], 
+# main blobs method
+
+def blobs(v=['all'], min_pop, iterations=10, method='equal votes', weights=[], 
     initial=10, plot=True):
+    # usage:
+    #   v: array of variables on which to create blobs (all variables by default)
+    #   min_pop: minimum population in each blob (no default)
+    #   iterations: number of blobs solutions to create (will return best): 10 by default
+    #   method: 'equal votes' by default, can change to 'weighted'
+    #   weights: if method='weighted', add weights for variables as an array
+    #   initial: number of times to revise each solution (10 by default)
+    #   plot: will plot the best solution (True by default)
     solutions = []
     top_scores = []
     times = []
     num_blobs = []
     current_time = []
     iteration = []
-    best_score = 10**12
+    best_score = -1
     best_solution = None
+    if v == ['all']:
+        v = all_vars
+    blob_vars = np.array(calls.loc[:,v], np.float64)
+    print('\n### CREATING BLOBS FROM ' + str(len(v)) + 
+        ' VARIABLES ###\n    PARAMETERS:\n     # Minimum population in each blob: ' + 
+        str(min_pop) + '\n     # Iterations: ' + str(iterations) +
+        '\n     # Method: ' + method + '\n')
     for i in range(0,iterations):
         start = time.time()
         r=ps.Maxp(w, format_blobs(blob_vars, method, weights=weights), 
@@ -100,17 +123,25 @@ def blobs(vars, min_pop, iterations, method='equal votes', weights=[],
         current_time.append(end)
         solutions.append(r.objective_function())
         num_blobs.append(r.k)
-        if (r.objective_function() < best_score):
+        if (best_score == -1 or r.objective_function() < best_score):
             best_score = r.objective_function()
             best_solution = r
         top_scores.append(best_score)
         iteration.append(i)
-        print('iteration '+str(i+1)+' - score: '+str(round(r.objective_function(),2))+
-        ' ('+str(r.k)+' blobs), best: '+str(round(best_score,2))+', '+
-        str(round(end-start,1))+'s')
+        print('\r# ITERATION '+str(i+1)+'                 \n  Score: '+
+            str(round(r.objective_function(),2))+
+            '\n  Created '+str(r.k)+' blobs ('+str(int(calls.shape[0]/r.k))+
+            ' tracts per blob)\n  Best solution so far: '+str(round(best_score,2))+
+            '\n  Time taken: '+str(round(end-start,1))+' seconds ('+
+            str(int(np.mean(times)*(iterations-i-1)))+' seconds remaining)\n')
+    r = best_solution
+    print('\r# BEST SOLUTION:                      \n  Score: '+
+        str(round(r.objective_function(),2))+
+        '\n  '+str(r.k)+' blobs ('+str(int(calls.shape[0]/r.k))+
+        ' tracts per blob)')
     if plot:
+        print('  Plotting...'),
         # prep for plotting
-        r = best_solution
         ids=np.array(calls['tractce10']).astype(str)
         # r.sort_regions(method='mean')  # uncomment to sort regions by intensity of the variable
         regions=np.empty(calls.shape[0])
@@ -121,7 +152,8 @@ def blobs(vars, min_pop, iterations, method='equal votes', weights=[],
         maps.plot_choropleth(shp_link, regions, type='quantiles',
             title='Chicago blobs from census tracts\n(min ' + 
                 str(r.floor) +' population per blob, ' + 
-                str(r.p)+' blobs)', k=r.p, figsize=(6,8))
+                str(r.p)+' blobs)', k=r.p, figsize=(6,9))
+        print('\r           \n')
     return dict(times=times, solutions=solutions, top_scores=top_scores, 
         current_time=current_time, iteration=iteration, best=r)
 
@@ -131,36 +163,17 @@ def blobs(vars, min_pop, iterations, method='equal votes', weights=[],
 #############
 
 # blobs() is our function that creates blobs
-# usage:
-#   vars: variables on which to create blobs; all variables by default. to 
-#         use only certain variables, set this to 
-#         np.array(calls.loc[:,[x, y, z]], np.float64),
-#         where x, y, z are the string names of variables desired, e.g.
-#         np.array(calls.loc[:,['tree_trims_per1000', 'buildings_per1000']], np.float64)
-#   min_pop: minimum population in each blob
-#   iterations: number of blobs solutions to create (will return best)
-#   method: 'equal votes' by default, can change to 'weighted'
-#   weights: if method='weighted', add weights for variables as an array
-#   initial: number of times to revise each solution (10 by default)
-#   plot: will plot the best solution (True by default)
 
 # the script will print the scores for each solution and the time it took.
 # time increases quickly with initial and min_pop.
 # interesting things to try: change min_pop to numbers between 10000 and 500000,
 # use only 1 or 2 vars, or change method to 'weighted' and add weights such as
-# [100, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] (remember, as many weights as variables)
+# [100, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] (remember to use as many weights as variables)
 
 
-results_10k = blobs(blob_vars, 10000, 1)
-results_100k = blobs(blob_vars, 100000, 1)
-results_trees = blobs(np.array(calls.loc[:,['tree_trims_per1000', 
-    'tree_debris_per1000']], np.float64), 100000, 1)
-results_dirtiness = blobs(np.array(calls.loc[:,['garbage_per1000', 
-    'rodents_per1000', 'sanitation_per1000']], np.float64), 100000, 1)
-
-
-
-
+results_10k = blobs(['all'], 10000)
+results_50k = blobs(['all'], 50000)
+results_trees = blobs(['tree_trims_per1000', 'tree_debris_per1000'], 10000)
 
 
 
