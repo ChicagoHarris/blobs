@@ -1,6 +1,6 @@
-### blobs code, v0.2
+### blobs code, v0.3
 ### contributors: jgiuffrida@uchicago.edu
-### 4/20/15
+### 4/21/15
 
 ###########
 ### PREP (run to end)
@@ -14,6 +14,7 @@ from pysal.contrib.viz import mapping as maps
 import matplotlib.pyplot as plt
 import time
 import cmd
+import datetime
 shp_link = 'tracts/CensusTractsTIGER2010.shp'
 dbf = ps.open('tracts/CensusTractsTIGER2010.dbf')
 cols = np.array([dbf.by_col(col) for col in dbf.header]).T
@@ -37,7 +38,6 @@ all_vars = ['vehicles_per1000', 'alley_lights_per1000', 'garbage_per1000',
     'graffiti_per1000', 'potholes_per1000', 'rodents_per1000', 
     'sanitation_per1000', 'street_lights_one_per1000', 'street_lights_all_per1000', 
     'tree_debris_per1000', 'tree_trims_per1000', 'buildings_per1000']
-
 
 # histogram helper function
 def hist(data, title='', bins=20):
@@ -91,7 +91,7 @@ def format_blobs(data, option='default', weights=None):
 # main blobs method
 
 def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weights=[], 
-    initial=10, plot=True):
+    initial=10, plot=True, savedata=True):
     # usage:
     #   v: array of variables on which to create blobs (for all variables, use ['all'])
     #   min_pop: minimum population in each blob
@@ -100,6 +100,7 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
     #   weights: if method='weighted', add weights for variables as an array
     #   initial: number of times to revise each solution (10 by default)
     #   plot: will plot the best solution (True by default)
+    #   savedata: will save a CSV of the blobs data to the root folder (False by default)
     solutions = []
     top_scores = []
     times = []
@@ -115,7 +116,8 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
     print('\n### CREATING BLOBS FROM ' + str(len(v)) + 
         ' VARIABLES ###\n    PARAMETERS:\n     # Minimum ' + floor_var + ' in each blob: ' + 
         str(int(min_pop)) + '\n     # Iterations: ' + str(iterations) +
-        '\n     # Method: ' + method + '\n')
+        '\n     # Method: ' + method + '\n     # Plot blobs: ' + str(plot) + 
+        '\n     # Save blobs data: ' + str(savedata) + '\n')
     for i in range(0,iterations):
         start = time.time()
         r=ps.Maxp(w, format_blobs(blob_vars, method, weights=weights), 
@@ -155,9 +157,31 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
             title='Chicago blobs from census tracts\n(min ' + 
                 str(int(r.floor)) +' population per blob, ' + 
                 str(r.p)+' blobs)', k=r.p, figsize=(6,9))
-        print('\r           \n')
-    return dict(times=times, solutions=solutions, top_scores=top_scores, 
-        current_time=current_time, iteration=iteration, best=r)
+        print('\r             \n')
+    
+    #build data structure
+    sr = np.zeros([r.k, len(v)*2+2])
+    for region in range(0,r.k):
+        # blob ID
+        sr[region][0] = region
+        selectionIDs = [r.w.id_order.index(i) for i in r.regions[region]]
+        m = r.z[selectionIDs, :]
+        # objective function
+        var = m.var(axis=0)
+        sr[region][1] = sum(np.transpose(var)) * len(r.regions[region])
+        # variable means and standard deviations
+        for j in range(0,len(v)):
+            sr[region][2+j*2] = m[:,j].mean()
+            sr[region][3+j*2] = m[:,j].std()
+    srdf = pd.DataFrame(sr)
+    cols = ['Blob', 'Score']
+    for j in range(0, len(v)):
+        cols.append(v[j]+'_mean')
+        cols.append(v[j]+'_stdev')
+    srdf.columns = cols
+    if savedata:
+        srdf.to_csv('Blobs data ' + datetime.datetime.now().strftime('%Y%m%d %H%M') + '.csv', index=False)
+    return dict(best=r, data=srdf, regions=r.area2region)
 
 # command line processor
 class CmdBlobs(cmd.Cmd):
@@ -167,6 +191,11 @@ class CmdBlobs(cmd.Cmd):
     picked = []
     floor_var = ''
     floor_size = 0
+    iterations = 10
+    method = 'equal votes'
+    weights = []
+    plot = True
+    savedata = True
 
     step = 1
     
@@ -199,7 +228,7 @@ class CmdBlobs(cmd.Cmd):
     def do_floor(self, name):
         "Step 2 part 1: Select floor variable"
         if name and name in self.variables:
-            response = '\n  Set %s as floor variable.\n' % name
+            response = '\n  %s set as floor variable.\n' % name
             self.floor_var = name
             response += '\n  Now, please enter command '+\
                 '\'size\' followed by the minimum floor size\n  you would like to set. '+\
@@ -227,7 +256,7 @@ class CmdBlobs(cmd.Cmd):
     def do_size(self, size):
         "Step 2 part 2: Set size of floor"
         if float(size) > 0:
-            response = '\n  Set %s as minimum floor\n' % str(size)
+            response = '\n  %s set as minimum floor\n' % str(size)
             self.floor_size = float(size)
             print response
             self.do_next('')
@@ -237,6 +266,55 @@ class CmdBlobs(cmd.Cmd):
         else:
             response = '\nPlease set the size\n'
             print response
+
+    def do_iterations(self, num):
+        "Set number of iterations"
+        if int(num) > 0:
+            response = '\n  %s set as number of iterations\n' % str(int(num))
+            self.iterations = int(num)
+        else:
+            response = '\nError: must set number of iterations\n'
+        print response
+
+    def do_method(self, line):
+        "Set method"
+        if line in ['equal votes', 'weighted', 'default']:
+            response = '\n  %s set as method\n' % line
+            self.method = line
+        else:
+            response = '\nError: must set method equal to \'equal votes\', '+\
+                '\'weighted\', or \'default\'\n'
+        print response
+
+    def do_weights(self, line):
+        "Set weights"
+        # this method has not been fleshed out
+        pass
+
+    def do_plot(self, line):
+        "Set whether to plot"
+        if line in ['true', 'True', 't', 'T', 'y', 'Y']:
+            response = '\n  The blobs map will be shown\n'
+            self.plot = True
+        elif line in ['false', 'False', 'f', 'F', 'n', 'N']:
+            response = '\n  The blobs map will NOT be shown\n'
+            self.plot = False
+        else:
+            response = '\nError: must set plot to \'True\' or \'False\'\n'
+        print response
+
+    def do_savedata(self, line):
+        "Set whether to save data"
+        if line in ['true', 'True', 't', 'T', 'y', 'Y']:
+            response = '\n  The blobs data will be saved to the root folder\n'
+            self.savedata = True
+        elif line in ['false', 'False', 'f', 'F', 'n', 'N']:
+            response = '\n  The blobs data will NOT be saved\n'
+            self.savedata = False
+        else:
+            response = '\nError: must set savedata to \'True\' or \'False\'\n'
+        print response
+
 
     def do_next(self, line):
         self.step += 1
@@ -252,18 +330,27 @@ class CmdBlobs(cmd.Cmd):
                 response += '\n    %s' % v
             response += '\n  Floor Variable: %s' % self.floor_var
             response += '\n  Floor Size: %s' % str(self.floor_size)
+            response += '\n  Iterations: %s' % str(self.iterations)
+            response += '\n  Method: %s' % self.method
+            response += '\n  Weights: %s' % str(self.weights)
+            response += '\n  Plot: %s' % str(self.plot)
+            response += '\n  Save Data: %s' % str(self.savedata)
             response += '\n\n  To run blobs using these parameters, enter command '+\
-                '\'run\'.\n  Otherwise, enter command \'exit\'.\n'
+                '\'run\'.\n  To change any of the parameters, enter one of the following '+\
+                '\n  commands, followed by the desired value:'+\
+                '\n    iterations, method, weights, plot, savedata'+\
+                '\n  To exit, enter command \'exit\'.\n'
             print response
     
     def do_exit(self, line):
         return True
 
     def do_run(self, line):
-        blobs(self.picked, self.floor_size, self.floor_var)
+        blobs(self.picked, self.floor_size, floor_var=self.floor_var, 
+            iterations=self.iterations, method=self.method, weights=self.weights,
+            plot=self.plot, savedata=self.savedata)
         self.do_exit('')
    
-
 
 def interface():
     print '\nThis is a command line interface for Blobs.'
