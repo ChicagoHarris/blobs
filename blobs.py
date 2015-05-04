@@ -1,12 +1,7 @@
-### blobs code, v0.3
+### blobs code, v0.4
 ### contributors: jgiuffrida@uchicago.edu
-### 4/21/15
+### 5/3/15
 
-###########
-### PREP (run to end)
-###########
-
-# import modules and data
 import pysal as ps
 import numpy as np
 import pandas as pd
@@ -15,6 +10,11 @@ import matplotlib.pyplot as plt
 import time
 import cmd
 import datetime
+from mpl_toolkits.mplot3d import Axes3D
+from sklearn.cluster import KMeans
+
+
+pd.set_option('display.max_columns', 10)
 shp_link = 'tracts/CensusTractsTIGER2010.shp'
 dbf = ps.open('tracts/CensusTractsTIGER2010.dbf')
 cols = np.array([dbf.by_col(col) for col in dbf.header]).T
@@ -24,23 +24,51 @@ df.columns = df.columns.map(lambda x: x.lower())
 df.commarea = df.commarea.astype('int')
 df['order'] = df.index
 w=ps.open('tracts/CensusTractsTIGER2010_fixed.gal').read()
-calls = pd.read_csv('master311.csv', dtype=object)
-for c in calls.columns[1:]:
-    calls[c] = calls[c].astype('float')
+init_calls = pd.read_csv('master311.csv', dtype=object)
+for c in init_calls.columns[1:]:
+    init_calls[c] = init_calls[c].astype('float')
 
 # format data and merge on shapefile IDs
 ordered_tracts = pd.DataFrame(df.loc[:,['tractce10', 'commarea', 'order']])
-calls = pd.merge(calls, ordered_tracts, how='right', left_on='tract', 
-    right_on='tractce10', sort=False).fillna(0)
-calls = calls.sort(['order'])
+calls = pd.merge(init_calls, ordered_tracts, how='right', left_on='tract', 
+    right_on='tractce10', sort=False).fillna(0).sort(['order'])
 
 all_vars = ['vehicles_per1000', 'alley_lights_per1000', 'garbage_per1000',
     'graffiti_per1000', 'potholes_per1000', 'rodents_per1000', 
     'sanitation_per1000', 'street_lights_one_per1000', 'street_lights_all_per1000', 
     'tree_debris_per1000', 'tree_trims_per1000', 'buildings_per1000']
 
+
+
 # histogram helper function
 def hist(data, title='', bins=20):
+    """Create a nice-looking histogram.
+
+    Parameters
+    ----------
+
+    data            : array
+                      n*1 vector of observations on variable of interest
+
+    title           : string
+                      title for the chart
+
+    bins            : int
+                      number of bins in which to group observations
+
+    Attributes
+    ----------
+
+    none
+
+    Examples
+    --------
+
+    >>> import numpy as np
+    >>> x = np.random.rand(100,1)
+    >>> hist(x, title='Random Uniform Distribution', bins=8)
+
+    """
     hist, bins = np.histogram(data, bins=20)
     width = 0.7 * (bins[1] - bins[0])
     center = (bins[:-1] + bins[1:]) / 2
@@ -48,16 +76,17 @@ def hist(data, title='', bins=20):
     plt.title(title)
     plt.show()
 
+
 # helper function to determine how to color choropleth
 def sort_regions(self, method='objective'):
     sr = np.zeros([self.k,2])
-    for region in range(0,r.k):
+    for region in range(0,self.k):
         sr[region][0] = region
-        selectionIDs = [r.w.id_order.index(i) for i in r.regions[region]]
-        m = r.z[selectionIDs, :]
+        selectionIDs = [self.w.id_order.index(i) for i in self.regions[region]]
+        m = self.z[selectionIDs, :]
         if method == 'objective':
             var = m.var(axis=0)
-            sr[region][1] = sum(np.transpose(var)) * len(r.regions[region])
+            sr[region][1] = sum(np.transpose(var)) * len(self.regions[region])
         elif method == 'mean':
             sr[region][1] = m.mean()  # simple mean of all variables
     srdf = pd.DataFrame(sr)
@@ -69,7 +98,7 @@ def sort_regions(self, method='objective'):
 ps.Maxp.sort_regions = sort_regions
 
 # helper function to assign weights to variables
-def format_blobs(data, option='default', weights=None):
+def format_blobs(data, option='equal votes', weights=None):
     if option == 'default':
         # use max p as originally designed
         # variables will be implicitly weighted in proportion to their means
@@ -77,30 +106,74 @@ def format_blobs(data, option='default', weights=None):
     elif option == 'equal votes':
         # give equal weight to all variables by standardizing them
         x = np.zeros(data.shape)
-        for v in range(0, data.shape[1]):
+        for v in range(data.shape[1]):
             x[:,v] = (data[:,v] - np.mean(data[:,v])) / np.std(data[:,v])
         return x
     elif option == 'weighted':
         # assign explicit weights to standardized variables
         x = np.zeros(data.shape)
-        for v in range(0, data.shape[1]):
+        for v in range(data.shape[1]):
             x[:,v] = ((data[:,v] - np.mean(data[:,v])) / \
                 np.std(data[:,v])) * np.sqrt(weights[v])
         return x
 
-# main blobs method
+# helper function to retrieve original, non-standardized data about a blob
+def retrieve_raw_data():
+    pass  # todo
 
+
+# main blobs method
 def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weights=[], 
-    initial=10, plot=True, savedata=True):
-    # usage:
-    #   v: array of variables on which to create blobs (for all variables, use ['all'])
-    #   min_pop: minimum population in each blob
-    #   iterations: number of blobs solutions to create (will return best): 10 by default
-    #   method: 'equal votes' by default, can change to 'weighted'
-    #   weights: if method='weighted', add weights for variables as an array
-    #   initial: number of times to revise each solution (10 by default)
-    #   plot: will plot the best solution (True by default)
-    #   savedata: will save a CSV of the blobs data to the root folder (False by default)
+    initial=10, plot=True, savedata=False, plot_values=False):
+    """Create a max-p regions solution for a given shapefile and associated 
+    dataset. Builds on pysal.Maxp with improvements to the user interface, 
+    verbosity, and mapping. 
+
+    Original problem from "The Max-p-Regions Problem," Duque, Anselin, and Rey, 
+    JRS, October 2010, available at http://geography.sdsu.edu/Research/
+    Projects/IPC/publication/MaxP_authored.pdf.
+
+    Parameters
+    ----------
+    v           : array
+                  array of variables on which to create blobs (for all 
+                    variables, use ['all'])
+
+    min_pop     : int
+                  minimum population in each blob
+
+    iterations  : int
+                  number of blobs solutions to create (will return best): 10 by 
+                    default
+
+    method      : {'equal votes', 'default', 'weighted'}
+                  equal votes' by default, can change to 'weighted'
+
+    weights     : array
+                  if method='weighted', add weights for variables as an array
+
+    initial     : int
+                  number of times to revise each solution (10 by default)
+
+    plot        : boolean
+                  will plot the best solution (True by default)
+
+    savedata    : boolean
+                  will save a CSV of the blobs data to the root folder (False 
+                    by default)
+
+    plot_values : boolean
+                  will color-code the plot by the mean of the underlying 
+                    variables. only makes sense with one variable. default 
+                    False (plots by ID of the blob)
+    
+    Sample usage
+    ------------
+
+    >>> blobs(['all_calls_per1000'], min_pop=10000, plot_values=True)
+
+    """
+    
     solutions = []
     top_scores = []
     times = []
@@ -125,29 +198,33 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
         end = time.time()
         times.append(end - start)
         current_time.append(end)
-        solutions.append(r.objective_function())
+        current_score = r.objective_function()
+        solutions.append(current_score)
         num_blobs.append(r.k)
-        if (best_score == -1 or r.objective_function() < best_score):
-            best_score = r.objective_function()
+        if (best_score == -1 or current_score < best_score):
+            best_score = current_score
             best_solution = r
         top_scores.append(best_score)
         iteration.append(i)
-        print('\r# ITERATION '+str(i+1)+'                 \n  Score: '+
-            str(round(r.objective_function(),2))+
-            '\n  Created '+str(r.k)+' blobs ('+str(int(calls.shape[0]/r.k))+
-            ' tracts per blob)\n  Best solution so far: '+str(round(best_score,2))+
-            '\n  Time taken: '+str(round(end-start,1))+' seconds ('+
-            str(int(np.mean(times)*(iterations-i-1)))+' seconds remaining)\n')
+        msg = '\r# ITERATION '+str(i+1)+'                 \n  Score: ' + \
+            str(round(current_score,2)) + '\n  Created '+str(r.k)+' blobs (' + \
+            str(int(calls.shape[0]/r.k)) + ' tracts per blob)\n  Best solution so far: ' + \
+            str(round(best_score,2))
+        msg += '\n  Time taken: '+str(round(end-start,1))+' seconds ('+ \
+            str(int(np.mean(times)*(iterations-i-1)))+' seconds remaining)\n'
+        print msg
+    
     r = best_solution
     print('\r# BEST SOLUTION:                      \n  Score: '+
-        str(round(r.objective_function(),2))+
+        str(round(r.objective_function(),2)) + 
         '\n  '+str(r.k)+' blobs ('+str(int(calls.shape[0]/r.k))+
         ' tracts per blob)')
     if plot:
         print('  Plotting...'),
         # prep for plotting
         ids=np.array(calls['tractce10']).astype(str)
-        # r.sort_regions(method='mean')  # uncomment to sort regions by intensity of the variable
+        if plot_values:
+            r.sort_regions(method='mean')  # sort regions by intensity of the variable
         regions=np.empty(calls.shape[0])
         for j in range(0,calls.shape[0]):
             reg=r.area2region[ids[j]]
@@ -160,7 +237,7 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
         print('\r             \n')
     
     #build data structure
-    sr = np.zeros([r.k, len(v)*2+2])
+    sr = np.zeros([r.k, len(v)*2+4])
     for region in range(0,r.k):
         # blob ID
         sr[region][0] = region
@@ -169,19 +246,25 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
         # objective function
         var = m.var(axis=0)
         sr[region][1] = sum(np.transpose(var)) * len(r.regions[region])
+        # blob size (number of places in blob)
+        sr[region][2] = len(r.regions[region])
+        # blob population
+        sr[region][3] = calls.loc[selectionIDs, floor_var].sum()
         # variable means and standard deviations
         for j in range(0,len(v)):
-            sr[region][2+j*2] = m[:,j].mean()
-            sr[region][3+j*2] = m[:,j].std()
+            sr[region][4+j*2] = m[:,j].mean()
+            sr[region][5+j*2] = m[:,j].std()
     srdf = pd.DataFrame(sr)
-    cols = ['Blob', 'Score']
+    cols = ['Blob', 'Score', 'Size', floor_var]
     for j in range(0, len(v)):
         cols.append(v[j]+'_mean')
         cols.append(v[j]+'_stdev')
     srdf.columns = cols
     if savedata:
-        srdf.to_csv('Blobs data ' + datetime.datetime.now().strftime('%Y%m%d %H%M') + '.csv', index=False)
+        srdf.to_csv('Blobs data ' + datetime.datetime.now().strftime('%Y%m%d %H%M') + \
+            '.csv', index=False)
     return dict(best=r, data=srdf, regions=r.area2region)
+
 
 # command line processor
 class CmdBlobs(cmd.Cmd):
@@ -196,8 +279,21 @@ class CmdBlobs(cmd.Cmd):
     weights = []
     plot = True
     savedata = True
+    r = None
 
     step = 1
+
+    def clear_vars(self):
+        self.picked = []
+        self.floor_var = ''
+        self.floor_size = 0
+        self.iterations = 10
+        self.method = 'equal votes'
+        self.weights = []
+        self.plot = True
+        self.savedata = True
+        self.r = None
+        self.step = 1
     
     def do_select(self, name):
         "Step 1: select a variable"
@@ -341,58 +437,200 @@ class CmdBlobs(cmd.Cmd):
                 '\n    iterations, method, weights, plot, savedata'+\
                 '\n  To exit, enter command \'exit\'.\n'
             print response
+        if self.step == 4:
+            response = '\n## Step 4: Cluster Blobs\n  Ready to assign blobs to clusters. '+\
+                'Please enter command \'cluster\' \n  followed by the average number of blobs '+\
+                'you want in each cluster.\n  A good value might be the number of blobs '+\
+                'divided by 10 or 20. Or\n  enter command \'exit\' to exit.\n'
+            print response
+        if self.step == 5:
+            self.do_exit('')
     
     def do_exit(self, line):
         return True
 
     def do_run(self, line):
-        blobs(self.picked, self.floor_size, floor_var=self.floor_var, 
+        self.r = blobs(self.picked, self.floor_size, floor_var=self.floor_var, 
             iterations=self.iterations, method=self.method, weights=self.weights,
             plot=self.plot, savedata=self.savedata)
-        self.do_exit('')
+        self.do_next('')
+
+    def do_cluster(self, clusters):
+        if int(clusters) > 0:
+            cluster_blobs(self.r['data'], blobs_per_cluster=int(clusters))
+            self.do_next('')
+        else:
+            print('Error: must set number of blobs per cluster')
    
 
 def interface():
+    """
+    Example usage:
+    --------------
+
+    >>> interface()
+    (Cmd) select sanitation_per1000
+    (Cmd) select garbage_per1000
+    (Cmd) select rodents_per1000
+    (Cmd) next
+    (Cmd) floor pop
+    (Cmd) size 20000
+    (Cmd) savedata False
+    (Cmd) iterations 5
+    (Cmd) run
+    (Cmd) cluster 15
+    (Cmd) cluster 8
+    (Cmd) cluster 20
+    (Cmd) exit
+
+    """
+
     print '\nThis is a command line interface for Blobs.'
     print '\n## Step 1: Select Variables'
     print('  Enter command \'select\' followed by a variable you want. Use tab key '+
         '\n  to see options or autocomplete. When finished, enter command \'next\'.\n'+
         '  At any time, you can enter command \'exit\' to exit.\n')
-    CmdBlobs().cmdloop()
+    newUI = CmdBlobs()
+    newUI.clear_vars()  # clear any variables from a previous usage
+    newUI.cmdloop()
 
 
-#############
-#### END PREP
-#############
+# cluster the blobs data (k-means)
+def cluster_blobs(r, variables=[], n_clusters=0, blobs_per_cluster=0):
 
-# blobs() is our function that creates blobs.
-# can also run interface() for a command-line user interface to guide 
-# you through blob creation.
+    # build list of variables on which to cluster (if not provided)
+    if variables == []:
+        cluster_vars = []
+        for c in r.columns:
+            if c.find('_mean') > 0:
+                cluster_vars.append(c)
+    else:
+        cluster_vars = variables
 
-# the script will print the scores for each solution and the time it took.
-# time increases quickly with initial and min_pop.
-# interesting things to try: change min_pop to numbers between 10000 and 500000,
-# use only 1 or 2 vars, or change method to 'weighted' and add weights such as
-# [100, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] (remember to use as many weights as variables)
+    x = np.array(r[cluster_vars])
+
+    # set n_clusters
+    if n_clusters == 0 and blobs_per_cluster == 0:
+        blobs_per_cluster = 10  # totally arbitrary
+        n_clusters = int(np.round(x.shape[0] / blobs_per_cluster))
+    elif blobs_per_cluster:
+        n_clusters = int(np.round(x.shape[0] / blobs_per_cluster))
+    elif n_clusters:
+        blobs_per_cluster = int(np.round(x.shape[0] / n_clusters))
+
+    # run k-means with all available CPU cores
+    est = KMeans(n_clusters=n_clusters, n_jobs=-1)
+    est.fit(x)
+
+    # prepare plot - will automatically plot in 3D if k-means used 3+ variables
+    fig = plt.figure(figsize=(10, 9))
+    plt.clf()
+    if len(cluster_vars) < 3:
+        ax = fig.add_subplot(111)
+    else:
+        ax = Axes3D(fig, rect=[0, 0, .95, 1], elev=30, azim=134)
+
+    plt.cla()
+    labels = est.labels_
+
+    # click event to print data about each point on user interaction
+    def onpick(event):
+        ind = event.ind
+        for i in ind:
+            type = event.artist.get_label()
+            msg = ''
+            if type == 'Blobs':
+                msg = 'Blob ' + str(i)
+                for c in range(x.shape[1]):
+                    msg += '\n  ' + cluster_vars[c][:cluster_vars[c].find('_mean')] + ': ' + \
+                            str(round(np.take(x[:,c], i), 2))
+                msg += '\n  (All values are z-scores)'
+                neighbors = np.where(est.labels_ == est.labels_[i])[0]
+                if len(neighbors) > 1:
+                    msg += '\n  Other blobs in cluster: ' + \
+                            ', '.join([k for k in neighbors.astype('str') if not k==str(i)]) + '\n'
+            elif type == 'Clusters':
+                msg = 'Cluster ' + str(i)
+                msg += '\n  Center of cluster (all values in z-scores):'
+                for c in range(est.cluster_centers_.shape[1]):
+                    msg += '\n  ' + cluster_vars[c][:cluster_vars[c].find('_mean')] + ': ' + \
+                            str(round(np.take(est.cluster_centers_[:,c], i), 2))
+                inhabitants = np.where(est.labels_ == i)[0]
+                msg += '\n  Blobs in cluster: ' + \
+                        ', '.join([k for k in inhabitants.astype('str') if not k==str(i)]) + '\n'
+            print msg
+
+    # prepare scatterplots and axes
+    if len(cluster_vars) == 2:
+        ax.scatter(x[:, 0], x[:, 1], s=30, c=labels.astype(np.float), label="Blobs", picker=True)
+        ax.scatter(est.cluster_centers_[:,0], est.cluster_centers_[:,1], 
+            s=40, marker='*', c=range(est.n_clusters), label="Clusters", picker=True)
+        ax.xaxis.set_ticklabels(ax.xaxis.get_ticklocs())
+        ax.yaxis.set_ticklabels(ax.yaxis.get_ticklocs())
+        ax.set_xlabel(cluster_vars[0])
+        ax.set_ylabel(cluster_vars[1])
+    elif len(cluster_vars) > 2:
+        ax.scatter(x[:, 0], x[:, 1], x[:, 2], s=30, c=labels.astype(np.float), 
+            label="Blobs", picker=True)
+        ax.scatter(est.cluster_centers_[:,0], est.cluster_centers_[:,1], est.cluster_centers_[:,2],
+            s=40, marker='*', c=range(est.n_clusters), label="Clusters", picker=True)
+        ax.w_xaxis.set_ticklabels(ax.w_xaxis.get_ticklocs())
+        ax.w_yaxis.set_ticklabels(ax.w_yaxis.get_ticklocs())
+        ax.w_zaxis.set_ticklabels(ax.w_zaxis.get_ticklocs())
+        ax.set_xlabel(cluster_vars[0])
+        ax.set_ylabel(cluster_vars[1])
+        ax.set_zlabel(cluster_vars[2])
+    ax.set_axisbelow(True)
+    fig.canvas.mpl_connect('pick_event', onpick)
+
+    plt.title(str(x.shape[0]) + ' Blobs in ' + str(est.n_clusters) + ' Clusters (Based on ' + \
+        str(len(cluster_vars)) + ' variables)\nClick on values for more information')
+    if len(cluster_vars) >= 2:
+        plt.show()
+    else:
+        print('No graph shown because only one variable was used')
+
+    # return a lot of data to work with, save, etc.
+    return dict(assignments=est.labels_, 
+        centers=pd.DataFrame(est.cluster_centers_, columns=cluster_vars), 
+        inertia=est.inertia_)
 
 
-# example usage:
-# interface()
-# results_10k = blobs(['all'], 10000)
-# results_50k = blobs(['all'], 50000)
-# results_trees = blobs(['tree_trims_per1000', 'tree_debris_per1000'], 10000)
 
 
+# example 1: blobs on three sanitation-related variables
+solution = blobs(['sanitation_per1000', 'rodents_per1000', 'buildings_per1000'], 
+    min_pop=10000, iterations=1)
+clusters = cluster_blobs(solution['data'], blobs_per_cluster=15)
+# try clicking on the dots and stars
+print clusters['centers']
+# note the cluster that is off-the-charts high in rodents, but not in sanitation/buildings.
+# this is ideal for a test-control situation by the sanitation department
+print clusters['assignments']
+# can easily re-run with larger or smaller clusters:
+clusters = cluster_blobs(solution['data'], blobs_per_cluster=5)
+# can also set number of clusters directly:
+clusters = cluster_blobs(solution['data'], n_clusters=3)
 
+# example 2: blobs on two street-related variables
+solution = blobs(['street_lights_all_per1000', 'potholes_per1000'], 
+    min_pop=30000, iterations=3)
+clusters = cluster_blobs(solution['data'], blobs_per_cluster=10)
+# try clicking on the dots and stars
 
+# example 3: blobs on potholes alone
+ maps.plot_choropleth(shp_link, np.array(calls.potholes_per1000), type='fisher_jenks',
+     title='Pothole Calls by Census Area, 2011-2015, Population-Adjusted', k=20, figsize=(6,9))
+solution = blobs(['potholes_per1000'], 
+    min_pop=50000, iterations=1)
+clusters = cluster_blobs(solution['data'], blobs_per_cluster=10)
 
+# example 4: blobs on all variables
+solution = blobs(['all'], min_pop=10000, iterations=3)
+clusters = cluster_blobs(solution['data'], blobs_per_cluster=20)
+# note that the 3D graph cannot show all relevant data
 
-
-
-
-
-
-
-
+# try using the interface too
+help(interface)
 
 
