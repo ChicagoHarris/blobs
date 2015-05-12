@@ -1,6 +1,6 @@
-### blobs code, v0.4
+### blobs code, v0.5
 ### contributors: jgiuffrida@uchicago.edu
-### 5/3/15
+### 5/11/15
 
 import pysal as ps
 import numpy as np
@@ -14,7 +14,9 @@ from mpl_toolkits.mplot3d import Axes3D
 from sklearn.cluster import KMeans
 
 
+%cd 'Documents/tech/git/blobs'
 pd.set_option('display.max_columns', 10)
+
 shp_link = 'tracts/CensusTractsTIGER2010.shp'
 dbf = ps.open('tracts/CensusTractsTIGER2010.dbf')
 cols = np.array([dbf.by_col(col) for col in dbf.header]).T
@@ -41,7 +43,7 @@ all_vars = ['vehicles_per1000', 'alley_lights_per1000', 'garbage_per1000',
 
 
 # histogram helper function
-def hist(data, title='', bins=20):
+def hist(data, title='Histogram of Values', bins=20, range=None):
     """Create a nice-looking histogram.
 
     Parameters
@@ -69,7 +71,11 @@ def hist(data, title='', bins=20):
     >>> hist(x, title='Random Uniform Distribution', bins=8)
 
     """
-    hist, bins = np.histogram(data, bins=20)
+
+    if not range:
+        range = (data.min(), data.max())
+
+    hist, bins = np.histogram(data, bins=bins, range=range)
     width = 0.7 * (bins[1] - bins[0])
     center = (bins[:-1] + bins[1:]) / 2
     plt.bar(center, hist, align='center', width=width)
@@ -124,7 +130,7 @@ def retrieve_raw_data():
 
 # main blobs method
 def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weights=[], 
-    initial=10, plot=True, savedata=False, plot_values=False):
+    initial=10, plot=True, savedata=False, plot_values=False, verbose=True):
     """Create a max-p regions solution for a given shapefile and associated 
     dataset. Builds on pysal.Maxp with improvements to the user interface, 
     verbosity, and mapping. 
@@ -186,6 +192,9 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
     if v == ['all']:
         v = all_vars
     blob_vars = np.array(calls.loc[:,v], np.float64)
+    if len(v) == 1:
+        # add shape to the array
+        blob_vars.shape = (blob_vars.shape[0], 1)
     print('\n### CREATING BLOBS FROM ' + str(len(v)) + 
         ' VARIABLES ###\n    PARAMETERS:\n     # Minimum ' + floor_var + ' in each blob: ' + 
         str(int(min_pop)) + '\n     # Iterations: ' + str(iterations) +
@@ -194,7 +203,7 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
     for i in range(0,iterations):
         start = time.time()
         r=ps.Maxp(w, format_blobs(blob_vars, method, weights=weights), 
-            floor=min_pop, floor_variable=floor_var_array, initial=initial)
+            floor=min_pop, floor_variable=floor_var_array, initial=initial, verbose=verbose)
         end = time.time()
         times.append(end - start)
         current_time.append(end)
@@ -206,7 +215,7 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
             best_solution = r
         top_scores.append(best_score)
         iteration.append(i)
-        msg = '\r# ITERATION '+str(i+1)+'                 \n  Score: ' + \
+        msg = '\n# ITERATION '+str(i+1)+'                 \n  Score: ' + \
             str(round(current_score,2)) + '\n  Created '+str(r.k)+' blobs (' + \
             str(int(calls.shape[0]/r.k)) + ' tracts per blob)\n  Best solution so far: ' + \
             str(round(best_score,2))
@@ -457,7 +466,7 @@ class CmdBlobs(cmd.Cmd):
 
     def do_cluster(self, clusters):
         if int(clusters) > 0:
-            cluster_blobs(self.r['data'], blobs_per_cluster=int(clusters))
+            Cluster_blobs(self.r['data'], blobs_per_cluster=int(clusters))
             self.do_next('')
         else:
             print('Error: must set number of blobs per cluster')
@@ -496,126 +505,239 @@ def interface():
 
 
 # cluster the blobs data (k-means)
-def cluster_blobs(r, variables=[], n_clusters=0, blobs_per_cluster=0):
+class Cluster_blobs:
+    """Use k-means to cluster blobs along the explanatory variables.
 
-    # build list of variables on which to cluster (if not provided)
-    if variables == []:
-        cluster_vars = []
-        for c in r.columns:
-            if c.find('_mean') > 0:
-                cluster_vars.append(c)
-    else:
-        cluster_vars = variables
+    Parameters
+    ----------
 
-    x = np.array(r[cluster_vars])
+    w               : pandas DataFrame
+                      should be a blobs data structure, accessible by calling 
+                        the "data" attribute of a Blobs() object
 
-    # set n_clusters
-    if n_clusters == 0 and blobs_per_cluster == 0:
-        blobs_per_cluster = 10  # totally arbitrary
-        n_clusters = int(np.round(x.shape[0] / blobs_per_cluster))
-    elif blobs_per_cluster:
-        n_clusters = int(np.round(x.shape[0] / blobs_per_cluster))
-    elif n_clusters:
-        blobs_per_cluster = int(np.round(x.shape[0] / n_clusters))
+    variables       : array
+                      an array of variable names to use for clustering; by 
+                        default, all variables ending in "_mean" will be used
 
-    # run k-means with all available CPU cores
-    est = KMeans(n_clusters=n_clusters, n_jobs=-1)
-    est.fit(x)
+    n_clusters      : int
+                      (optional) number of clusters to form
 
-    # prepare plot - will automatically plot in 3D if k-means used 3+ variables
-    fig = plt.figure(figsize=(10, 9))
-    plt.clf()
-    if len(cluster_vars) < 3:
-        ax = fig.add_subplot(111)
-    else:
-        ax = Axes3D(fig, rect=[0, 0, .95, 1], elev=30, azim=134)
+    blobs_per_      : int
+      cluster         (optional) average number of blobs per cluster. if both
+                        n_clusters and blobs_per_cluster have values, the 
+                        former will be ignored
 
-    plt.cla()
-    labels = est.labels_
+    Attributes
+    ----------
 
-    # click event to print data about each point on user interaction
-    def onpick(event):
-        ind = event.ind
-        for i in ind:
-            type = event.artist.get_label()
-            msg = ''
-            if type == 'Blobs':
-                msg = 'Blob ' + str(i)
-                for c in range(x.shape[1]):
-                    msg += '\n  ' + cluster_vars[c][:cluster_vars[c].find('_mean')] + ': ' + \
-                            str(round(np.take(x[:,c], i), 2))
-                msg += '\n  (All values are z-scores)'
-                neighbors = np.where(est.labels_ == est.labels_[i])[0]
-                if len(neighbors) > 1:
-                    msg += '\n  Other blobs in cluster: ' + \
-                            ', '.join([k for k in neighbors.astype('str') if not k==str(i)]) + '\n'
-            elif type == 'Clusters':
-                msg = 'Cluster ' + str(i)
-                msg += '\n  Center of cluster (all values in z-scores):'
-                for c in range(est.cluster_centers_.shape[1]):
-                    msg += '\n  ' + cluster_vars[c][:cluster_vars[c].find('_mean')] + ': ' + \
-                            str(round(np.take(est.cluster_centers_[:,c], i), 2))
-                inhabitants = np.where(est.labels_ == i)[0]
-                msg += '\n  Blobs in cluster: ' + \
-                        ', '.join([k for k in inhabitants.astype('str') if not k==str(i)]) + '\n'
-            print msg
+    assignments     : numpy array
+                      an n*1 array of cluster labels, in order
 
-    # prepare scatterplots and axes
-    if len(cluster_vars) == 2:
-        ax.scatter(x[:, 0], x[:, 1], s=30, c=labels.astype(np.float), label="Blobs", picker=True)
-        ax.scatter(est.cluster_centers_[:,0], est.cluster_centers_[:,1], 
-            s=40, marker='*', c=range(est.n_clusters), label="Clusters", picker=True)
-        ax.xaxis.set_ticklabels(ax.xaxis.get_ticklocs())
-        ax.yaxis.set_ticklabels(ax.yaxis.get_ticklocs())
-        ax.set_xlabel(cluster_vars[0])
-        ax.set_ylabel(cluster_vars[1])
-    elif len(cluster_vars) > 2:
-        ax.scatter(x[:, 0], x[:, 1], x[:, 2], s=30, c=labels.astype(np.float), 
-            label="Blobs", picker=True)
-        ax.scatter(est.cluster_centers_[:,0], est.cluster_centers_[:,1], est.cluster_centers_[:,2],
-            s=40, marker='*', c=range(est.n_clusters), label="Clusters", picker=True)
-        ax.w_xaxis.set_ticklabels(ax.w_xaxis.get_ticklocs())
-        ax.w_yaxis.set_ticklabels(ax.w_yaxis.get_ticklocs())
-        ax.w_zaxis.set_ticklabels(ax.w_zaxis.get_ticklocs())
-        ax.set_xlabel(cluster_vars[0])
-        ax.set_ylabel(cluster_vars[1])
-        ax.set_zlabel(cluster_vars[2])
-    ax.set_axisbelow(True)
-    fig.canvas.mpl_connect('pick_event', onpick)
+    centers         : pandas DataFrame
+                      the coordinates for the cluster centers, in order
 
-    plt.title(str(x.shape[0]) + ' Blobs in ' + str(est.n_clusters) + ' Clusters (Based on ' + \
-        str(len(cluster_vars)) + ' variables)\nClick on values for more information')
-    if len(cluster_vars) >= 2:
+    inertia         : float
+                      the "inertia" for the final solution; lower is better
+
+    Sample usage
+    ------------
+
+    >>> solution = Blobs(dataset, min_pop=10000)
+    >>> cl = Cluster_blobs(solution.data, blobs_per_cluster=10)
+    >>> print(cl.centers)
+
+    """
+
+    def __init__(self, v, variables=[], n_clusters=0, blobs_per_cluster=0):
+        """Initialize, run k-means, and plot."""
+        # build list of variables on which to cluster (if not provided)
+        if variables == []:
+            self.cluster_vars = []
+            for c in v.columns:
+                if c.find('_mean') > 0:
+                    self.cluster_vars.append(c)
+        else:
+            self.cluster_vars = variables
+
+        self.x = np.array(v[self.cluster_vars])
+        self.n_clusters = n_clusters
+        self.blobs_per_cluster = blobs_per_cluster
+        self._set_clusters()
+
+        self.assignments = None
+        self.centers = None
+        self.inertia = -1
+        self.kmeans()
+        self.plot()
+
+    def _set_clusters(self):
+        """Recalculate number of clusters."""
+        # set n_clusters
+        if self.n_clusters == 0 and self.blobs_per_cluster == 0:
+            self.blobs_per_cluster = 10  # totally arbitrary
+            self.n_clusters = int(np.round(self.x.shape[0] / 
+                self.blobs_per_cluster))
+        elif self.blobs_per_cluster:
+            self.n_clusters = int(np.round(self.x.shape[0] / self.blobs_per_cluster))
+        elif self.n_clusters:
+            self.blobs_per_cluster = int(np.round(self.x.shape[0] / self.n_clusters))
+
+    def kmeans(self):
+        """Run k-means with current settings."""
+        # run k-means with all available CPU cores
+        self.est = KMeans(n_clusters=self.n_clusters, n_jobs=-1) 
+        # the preceding can throw an error in multiprocessing.py in pycharm; change to n_jobs=1 to fix
+        self.est.fit(self.x)
+        # save a lot of data to work with, save, etc.
+        self.assignments = self.est.labels_ 
+        self.centers = pd.DataFrame(self.est.cluster_centers_, columns=self.cluster_vars)
+        self.inertia = self.est.inertia_
+
+
+    def plot(self, variables=[]):
+        """Plot the most recent k-means solution.
+
+        Parameters
+        ----------
+
+        variables   : array
+                      list of variables to plot (by default, uses variables 
+                        used in kmeans). if only two are provided, will plot in 2D.
+
+        """
+        fig = plt.figure(figsize=(10, 9))
+        plt.clf()
+
+        if len(variables) == 0:
+            vars_to_plot = self.cluster_vars
+        else:
+            vars_to_plot = variables
+
+        pos = {}
+
+        
+        if len(vars_to_plot) == 1:
+            print('No graph shown because only one variable was used')
+            return True
+        elif len(vars_to_plot) == 2:
+            ax = fig.add_subplot(111)
+        else:
+            # will automatically plot in 3D if 3+ variables
+            ax = Axes3D(fig, rect=[0, 0, .95, 1], elev=30, azim=134)
+
+
+        plt.cla()
+        labels = self.est.labels_
+
+        # click event to print data about each point on user interaction
+        def onpick(event):
+            ind = event.ind
+            for i in ind:
+                type = event.artist.get_label()
+                msg = ''
+                if type == 'Blobs':
+                    msg = 'Blob ' + str(i)
+                    for c in range(self.x.shape[1]):
+                        msg += '\n  ' + self.cluster_vars[c][:self.cluster_vars[c].find('_mean')]+\
+                                ': ' + str(round(np.take(self.x[:,c], i), 2))
+                    msg += '\n  (All values are z-scores)'
+                    neighbors = np.where(self.est.labels_ == self.est.labels_[i])[0]
+                    if len(neighbors) > 1:
+                        msg += '\n  Other blobs in cluster: ' + \
+                                ', '.join([k for k in neighbors.astype('str') if not k==str(i)]) + \
+                                '\n'
+                elif type == 'Clusters':
+                    msg = 'Cluster ' + str(i)
+                    msg += '\n  Center of cluster (all values in z-scores):'
+                    for c in range(self.est.cluster_centers_.shape[1]):
+                        msg += '\n  ' + self.cluster_vars[c][:self.cluster_vars[c].find('_mean')]+\
+                                ': ' + str(round(np.take(self.est.cluster_centers_[:,c], i), 2))
+                    inhabitants = np.where(self.est.labels_ == i)[0]
+                    msg += '\n  Blobs in cluster: ' + \
+                            ', '.join([k for k in inhabitants.astype('str') if not k==str(i)])+'\n'
+                print msg
+
+        # prepare scatterplots and axes
+        if len(vars_to_plot) == 2:
+            ax.scatter(x[:, self.cluster_vars.index(vars_to_plot[0])], 
+                x[:, self.cluster_vars.index(vars_to_plot[1])], s=30, 
+                c=labels.astype(np.float),label="Blobs",picker=True)
+            ax.scatter(self.est.cluster_centers_[:,self.cluster_vars.index(vars_to_plot[0])], 
+                self.est.cluster_centers_[:,self.cluster_vars.index(vars_to_plot[1])], s=40, 
+                marker='*', c=range(self.est.n_clusters), label="Clusters", picker=True)
+            ax.xaxis.set_ticklabels(ax.xaxis.get_ticklocs())
+            ax.yaxis.set_ticklabels(ax.yaxis.get_ticklocs())
+            ax.set_xlabel(vars_to_plot[0])
+            ax.set_ylabel(vars_to_plot[1])
+        elif len(vars_to_plot) > 2:
+            ax.scatter(self.x[:, self.cluster_vars.index(vars_to_plot[0])], 
+                self.x[:, self.cluster_vars.index(vars_to_plot[1])], 
+                self.x[:, self.cluster_vars.index(vars_to_plot[2])], s=30, 
+                c=labels.astype(np.float), label="Blobs", picker=True)
+            ax.scatter(self.est.cluster_centers_[:,self.cluster_vars.index(vars_to_plot[0])], 
+                self.est.cluster_centers_[:,self.cluster_vars.index(vars_to_plot[1])], 
+                self.est.cluster_centers_[:,self.cluster_vars.index(vars_to_plot[2])], 
+                s=40, marker='*', c=range(self.est.n_clusters), label="Clusters", picker=True)
+            ax.w_xaxis.set_ticklabels(ax.w_xaxis.get_ticklocs())
+            ax.w_yaxis.set_ticklabels(ax.w_yaxis.get_ticklocs())
+            ax.w_zaxis.set_ticklabels(ax.w_zaxis.get_ticklocs())
+            ax.set_xlabel(vars_to_plot[0])
+            ax.set_ylabel(vars_to_plot[1])
+            ax.set_zlabel(vars_to_plot[2])
+        ax.set_axisbelow(True)
+        fig.canvas.mpl_connect('pick_event', onpick)
+
+        plt.title(str(self.x.shape[0]) + ' Blobs in ' + str(self.est.n_clusters) + 
+            ' Clusters (Based on ' + str(len(vars_to_plot)) + 
+                ' variables)\nClick on values for more information')
         plt.show()
-    else:
-        print('No graph shown because only one variable was used')
 
-    # return a lot of data to work with, save, etc.
-    return dict(assignments=est.labels_, 
-        centers=pd.DataFrame(est.cluster_centers_, columns=cluster_vars), 
-        inertia=est.inertia_)
 
+    def set_n_clusters(self, n_clusters):
+        """Set the desired number of clusters."""
+        # reset number of clusters
+        if int(n_clusters) > 0:
+            self.n_clusters = n_clusters
+            self.blobs_per_cluster = 0
+            self._set_clusters()
+        else:
+            print("Error: please provide n_clusters as an int")
+
+    def set_blobs_per_cluster(self, blobs_per_cluster):
+        """Set the desired number of blobs per cluster."""
+        # reset number of blobs per cluster
+        if int(blobs_per_cluster) > 0:
+            self.blobs_per_cluster = blobs_per_cluster
+            self.n_clusters = 0
+            self._set_clusters()
+        else:
+            print("Error: please provide blobs_per_cluster as an int")
+
+
+########### 
+######## END PREP
+###########
 
 
 
 # example 1: blobs on three sanitation-related variables
 solution = blobs(['sanitation_per1000', 'rodents_per1000', 'buildings_per1000'], 
-    min_pop=10000, iterations=1)
-clusters = cluster_blobs(solution['data'], blobs_per_cluster=15)
+    min_pop=10000, iterations=3)
+cl = Cluster_blobs(solution['data'], blobs_per_cluster=15)
 # try clicking on the dots and stars
-print clusters['centers']
+print cl.centers
 # note the cluster that is off-the-charts high in rodents, but not in sanitation/buildings.
 # this is ideal for a test-control situation by the sanitation department
-print clusters['assignments']
+print cl.assignments
 # can easily re-run with larger or smaller clusters:
-clusters = cluster_blobs(solution['data'], blobs_per_cluster=5)
+cl = Cluster_blobs(solution['data'], blobs_per_cluster=5)
 # can also set number of clusters directly:
-clusters = cluster_blobs(solution['data'], n_clusters=3)
+cl.set_n_clusters(3)
 
 # example 2: blobs on two street-related variables
 solution = blobs(['street_lights_all_per1000', 'potholes_per1000'], 
     min_pop=30000, iterations=3)
-clusters = cluster_blobs(solution['data'], blobs_per_cluster=10)
+cl = Cluster_blobs(solution['data'], blobs_per_cluster=10)
 # try clicking on the dots and stars
 
 # example 3: blobs on potholes alone
@@ -623,12 +745,14 @@ clusters = cluster_blobs(solution['data'], blobs_per_cluster=10)
      title='Pothole Calls by Census Area, 2011-2015, Population-Adjusted', k=20, figsize=(6,9))
 solution = blobs(['potholes_per1000'], 
     min_pop=50000, iterations=1)
-clusters = cluster_blobs(solution['data'], blobs_per_cluster=10)
+cl = Cluster_blobs(solution['data'], blobs_per_cluster=10)
 
 # example 4: blobs on all variables
 solution = blobs(['all'], min_pop=10000, iterations=3)
-clusters = cluster_blobs(solution['data'], blobs_per_cluster=20)
+cl = Cluster_blobs(solution['data'], blobs_per_cluster=20)
 # note that the 3D graph cannot show all relevant data
+# can request which variables to plot
+cl.plot(['rodents_per1000_mean', 'garbage_per1000_mean', 'vehicles_per1000_mean'])
 
 # try using the interface too
 help(interface)
