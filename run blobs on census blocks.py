@@ -208,11 +208,11 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
     print('\r# BEST SOLUTION:                      \n  Score: '+
         str(round(r.objective_function(),2)) + 
         '\n  '+str(r.k)+' blobs ('+str(int(calls.shape[0]/r.k))+
-        ' tracts per blob)')
+        ' blocks per blob)')
     if plot:
         print('  Plotting...'),
         # prep for plotting
-        ids=np.array(calls['tractce10']).astype(str)
+        ids=np.array(calls['block_id']).astype(str)
         if plot_values:
             r.sort_regions(method='mean')  # sort regions by intensity of the variable
         regions=np.empty(calls.shape[0])

@@ -1,6 +1,6 @@
-### blobs code, v0.5
+### blobs code, v0.6
 ### contributors: jgiuffrida@uchicago.edu
-### 5/11/15
+### 5/26/15
 
 import pysal as ps
 import numpy as np
@@ -228,17 +228,17 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
         str(round(r.objective_function(),2)) + 
         '\n  '+str(r.k)+' blobs ('+str(int(calls.shape[0]/r.k))+
         ' tracts per blob)')
+    # prep for plotting
+    ids=np.array(calls['tractce10']).astype(str)
+    if plot_values:
+        r.sort_regions(method='mean')  # sort regions by intensity of the variable
+    regions=np.empty(calls.shape[0])
+    for j in range(0,calls.shape[0]):
+        reg=r.area2region[ids[j]]
+        regions[j]=reg
     if plot:
-        print('  Plotting...'),
-        # prep for plotting
-        ids=np.array(calls['tractce10']).astype(str)
-        if plot_values:
-            r.sort_regions(method='mean')  # sort regions by intensity of the variable
-        regions=np.empty(calls.shape[0])
-        for j in range(0,calls.shape[0]):
-            reg=r.area2region[ids[j]]
-            regions[j]=reg
         # show blobs we created
+        print('  Plotting...'),
         maps.plot_choropleth(shp_link, regions, type='quantiles',
             title='Chicago blobs from census tracts\n(min ' + 
                 str(int(r.floor)) +' population per blob, ' + 
@@ -272,7 +272,7 @@ def blobs(v, min_pop, floor_var='pop', iterations=10, method='equal votes', weig
     if savedata:
         srdf.to_csv('Blobs data ' + datetime.datetime.now().strftime('%Y%m%d %H%M') + \
             '.csv', index=False)
-    return dict(best=r, data=srdf, regions=r.area2region)
+    return dict(best=r, data=srdf, regions=r.area2region, assignments=regions)
 
 
 # command line processor
@@ -722,13 +722,37 @@ class Cluster_blobs:
 
 # example 1: blobs on three sanitation-related variables
 solution = blobs(['sanitation_per1000', 'rodents_per1000', 'buildings_per1000'], 
-    min_pop=10000, iterations=3)
-cl = Cluster_blobs(solution['data'], blobs_per_cluster=15)
+    min_pop=25000, iterations=1, initial=1)
+cl = Cluster_blobs(solution['data'], blobs_per_cluster=50)
 # try clicking on the dots and stars
 print cl.centers
 # note the cluster that is off-the-charts high in rodents, but not in sanitation/buildings.
 # this is ideal for a test-control situation by the sanitation department
 print cl.assignments
+
+# plot clusters
+plots = np.zeros((solution['assignments'].shape))
+for i in range(len(solution['assignments'])):
+    plots[i] = cl.assignments[solution['assignments'][i]]
+
+maps.plot_choropleth(shp_link, plots, type='equal_interval',
+    title='Clustered blobs from Chicago census tracts', 
+    k=30, figsize=(6,9))
+
+# compare to an existing solution: community areas
+ca_regions = []
+for i in np.unique(calls['commarea']):
+    ca = []
+    for j in range(len(calls)):
+        if calls.ix[j, 'commarea'] == i:
+            ca.append(calls.ix[j, 'tractce10'])
+    ca_regions.append(ca)
+    print(str(i) + '\n')
+
+print('our solution: ' + str(solution['best'].objective_function()))
+print('existing solution: ' + str(solution['best'].objective_function(ca_regions)))
+
+
 # can easily re-run with larger or smaller clusters:
 cl = Cluster_blobs(solution['data'], blobs_per_cluster=5)
 # can also set number of clusters directly:

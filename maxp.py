@@ -359,7 +359,7 @@ class Maxp:
                 print '\n'
 
     def check_floor(self, region):
-        selectionIDs = [self.w.id_order.index(i) for i in region]
+        selectionIDs = [self.w.id_order.index(i) for int(i) in region]  # JG: int(i)
         cv = sum(self.floor_variable[selectionIDs])
         if cv >= self.floor:
             #print len(selectionIDs)
@@ -380,10 +380,10 @@ class Maxp:
             sys.stdout.flush()
         for region in solution:
             j += 1
-            if self.verbose and len(solution)>2:
-                sys.stdout.write('\rCalculating objective function (' + 
-                    str(round(float(j) / len(solution) * 100, 0)) + '% complete)')  # JG
-                sys.stdout.flush()  # JG
+            #if self.verbose and len(solution)>2:
+            #    sys.stdout.write('\rCalculating objective function (' + 
+            #        str(round(float(j) / len(solution) * 100, 0)) + '% complete)')  # JG
+            #    sys.stdout.flush()  # JG
             selectionIDs = [self.w.id_order.index(i) for i in region]
             m = self.z[selectionIDs, :]
             var = m.var(axis=0)
