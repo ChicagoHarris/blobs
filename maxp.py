@@ -130,7 +130,7 @@ class Maxp:
             self.initial_wss = []
             self.attempts = 0
             for i in range(initial):
-                print('\nBuilding solution ' + str(i+1) + '...')
+                # print('\nBuilding solution ' + str(i+1) + '...')
                 self.initial_solution()
                 if self.p:
                     val = self.objective_function()
@@ -272,7 +272,7 @@ class Maxp:
             changed_regions = [0] * self.k
             swap_iteration += 1
             total_change = 0
-            print('\n')
+            # print('\n')
             for seed in regionIds:
                 local_swapping = True
                 local_attempts = 0
