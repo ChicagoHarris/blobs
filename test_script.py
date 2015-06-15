@@ -11,6 +11,27 @@ from pysal.contrib.viz import mapping as maps
 import blobs
 pd.set_option('display.max_columns', 10)
 
+# tract level
+d = blobs.Blobs_Data('Chicago Census.csv', 'tract', 'tracts/CensusTractsTIGER2010.shp', 
+  'tractce10', ['crimes_2001_to_present', 
+  '311_service_requests_vacant_and_abandoned_building', 
+  '311_service_requests_rodent_baiting'])
+b = blobs.Blobs(d, 'pop', 10000)
+
+# block level
+d = blobs.Blobs_Data('Chicago Census.csv', 'block', 'blocks/CensusBlockTIGER2010.shp', 
+  'geoid10', ['crimes_2001_to_present', 
+  '311_service_requests_vacant_and_abandoned_building', 
+  '311_service_requests_rodent_baiting'])
+b = blobs.Blobs(d, 'pop', 10000)
+cl = blobs.Cluster_blobs(b.blobs_data, blobs_per_cluster=10)
+
+
+
+# or skip ahead with the following
+import numpy as np
+import pandas as pd
+import pysal as ps
 shp_link = 'tracts/CensusTractsTIGER2010.shp'
 dbf = ps.open('tracts/CensusTractsTIGER2010.dbf')
 cols = np.array([dbf.by_col(col) for col in dbf.header]).T
@@ -19,23 +40,32 @@ df.columns = dbf.header
 df.columns = df.columns.map(lambda x: x.lower())
 df.commarea = df.commarea.astype('int')
 df['order'] = df.index
-w=ps.open('tracts/CensusTractsTIGER2010_fixed.gal').read()
+w=ps.open('tracts/CensusTractsTIGER2010.gal').read()
 init_calls = pd.read_csv('master311.csv', dtype=object)
 for c in init_calls.columns[1:]:
     init_calls[c] = init_calls[c].astype('float')
 
 # format data and merge on shapefile IDs
 ordered_tracts = pd.DataFrame(df.loc[:,['tractce10', 'commarea', 'order']])
-calls = pd.merge(init_calls, ordered_tracts, how='right', left_on='tract', 
+calls = pd.merge(init_calls, ordered_tracts, how='right', left_on='tractID', 
     right_on='tractce10', sort=False).fillna(0).sort(['order'])
+calls = calls.drop(['order', 'commarea'],1)
 
+class bd:
+  data = calls
+  w = w
+  shp_link = shp_link
+  id = 'tractce10'
+  level = 'tract'
 
+d = bd()
+b = blobs.Blobs(d, 'pop', 10000, iterations=1)
 
 # example 1: blobs on three sanitation-related variables
 b = blobs.Blobs(calls, w, shp_link)
-b.build_blobs('pop', 10000, vars_to_use=['sanitation_per1000', 
+b.build_blobs('rodents', 500, vars_to_use=['sanitation_per1000', 
   'rodents_per1000', 'buildings_per1000'], iterations=5)
-cl = blobs.Cluster_blobs(b.blobs_data, blobs_per_cluster=20)
+cl = blobs.Cluster_blobs(b.blobs_data, blobs_per_cluster=10)
 # try clicking on the dots and stars
 print cl.centers
 # note the cluster that is off-the-charts high in rodents, but not in sanitation/buildings.
