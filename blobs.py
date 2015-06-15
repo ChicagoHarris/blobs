@@ -836,10 +836,11 @@ class Cluster_blobs:
         self.assignments = self.est.labels_ 
         self.centers = pd.DataFrame(self.est.cluster_centers_, columns=self.cluster_vars)
         self.inertia = self.est.inertia_
+        self.clusters2blobs = {}
         for c in np.unique(self.assignments):
             self.clusters2blobs[str(c)] = []
-        for i in range(0, len(v)):
-            self.clusters2blobs[str(self.assignments[i])].append(str(int(v.Blob[i])))
+        for i in range(0, len(self.x)):
+            self.clusters2blobs[str(self.assignments[i])].append(str(int(self.x[i][0])))
 
 
     def plot(self, variables=[]):

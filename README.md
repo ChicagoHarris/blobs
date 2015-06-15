@@ -139,7 +139,7 @@ class bd:
 
 d = bd()
 b = blobs.Blobs(d, 'pop', 10000, iterations=1)
-cl = Cluster_Blobs(b.blobs_data, blobs_per_cluster=10)
+cl = blobs.Cluster_blobs(b.blobs_data, blobs_per_cluster=10)
 
 ##############
 ## TO HERE
