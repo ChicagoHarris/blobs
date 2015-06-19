@@ -1,7 +1,7 @@
 Blobs: Smart Clustering at the Urban Level
 =====
 
-*v0.8: June 2015*
+*v0.9: June 2015*
 
 Spatial analytics is often hampered by the arbitrary choice of units, allowing local heterogeneity to obscure true patterns. Blobs is a new “smart clustering” technique that lets us use large quantities of open municipal data from [Plenario](http://plenar.io) to redraw city maps to reflect facts on the ground, not administrative boundaries. 
 
