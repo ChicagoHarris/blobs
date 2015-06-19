@@ -1,6 +1,6 @@
-### blobs code, v0.8
+### blobs code, v0.9
 ### contributors: jgiuffrida@uchicago.edu
-### 6/14/15
+### 6/18/15
 
 import pysal as ps
 import numpy as np
@@ -8,7 +8,6 @@ import pandas as pd
 from pysal.contrib.viz import mapping as maps
 import matplotlib.pyplot as plt
 import time
-import cmd
 import datetime
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.cluster import KMeans
@@ -74,7 +73,7 @@ def sort_regions(self, method='objective'):
     for i in range(0,self.k):
         self.sorted_regions[int(srdf[i:i+1][0])] = i
 
-# extend blobs with a few more variables to remember what we did
+# extend Maxp with new method
 ps.Maxp.sort_regions = sort_regions
 
 
@@ -198,6 +197,7 @@ class Blobs_Data:
 
         times = []
         sys.stdout.write('\rdownloading data...')
+        sys.stdout.flush()
         for t in range(0, len(final)):
             start = time.time()
             if level == 'tract' or level == 'block group':
@@ -246,8 +246,6 @@ class Blobs_Data:
         self.data = self.data.drop(['order'])
         print('\rdata ready to use\n\n')
         return True
-
-
 
 
 # main blobs class
@@ -304,6 +302,31 @@ class Blobs:
                   will print out comprehensive information about the progress
                     of the solution
 
+
+    Attributes
+    ----------
+
+    regions     : numpy array
+                  The assigned blob for each area, in the original order
+
+    r           : PySAL MaxP instance
+                  The best solution found.
+
+    plot_blobs(variable=None, k=None): method
+                  Will plot the blobs. If a variable name is entered, will plot
+                    blobs along that variable. If k is entered, it will be
+                    the number of buckets used in the choropleth. Example:
+
+                    b.plot_blobs('pop', 5)
+
+                    Will plot blobs by population into five buckets. 
+
+    build_blobs(): Will rebuild blobs. Currently there is no way to reassign
+                     parameters here - to do that, create another Blobs object.
+                     However, this method may return a different solution 
+                     because of randomness. 
+
+
     Sample usage
     ------------
 
@@ -348,8 +371,6 @@ class Blobs:
 
     def build_blobs(self):
         """ Method to create a blobs solution.
-            floor_var is either the name of the variable, or "areas" to set the floor
-            to a certain number of areas
         """
         solutions = []
         top_scores = []
@@ -507,246 +528,6 @@ class Blobs:
         pass  # todo
 
 
-
-
-# command line processor
-class CmdBlobs(cmd.Cmd):
-    """Command line interface for blobs"""
-
-    variables = ['tract', 'pop', 'ca', 'vehicles', 'alley_lights', 'garbage',
-        'graffiti', 'potholes', 'rodents', 'sanitation', 'street_lights_one',
-        'street_lights_all', 'tree_debris', 'tree_trims', 'buildings',
-        'vehicles_per1000', 'alley_lights_per1000', 'garbage_per1000',
-        'graffiti_per1000', 'potholes_per1000', 'rodents_per1000',
-        'sanitation_per1000', 'street_lights_one_per1000',
-        'street_lights_all_per1000', 'tree_debris_per1000',
-        'tree_trims_per1000', 'buildings_per1000', 'all_calls',
-        'all_calls_per1000', 'tractce10', 'commarea', 'order']
-
-    picked = []
-    floor_var = ''
-    floor_size = 0
-    iterations = 10
-    method = 'equal votes'
-    weights = []
-    plot = True
-    savedata = True
-    r = None
-
-    step = 1
-
-    def clear_vars(self):
-        self.picked = []
-        self.floor_var = ''
-        self.floor_size = 0
-        self.iterations = 10
-        self.method = 'equal votes'
-        self.weights = []
-        self.plot = True
-        self.savedata = True
-        self.r = None
-        self.step = 1
-    
-    def do_select(self, name):
-        "Step 1: select a variable"
-        if name and name in self.variables:
-            response = '\n  Added %s.\n  Add more variables or enter command \'next\'.\n' % name
-            self.picked.append(name)
-        elif name:
-            response = '\nError: could not find variable %s\n' % name
-        else:
-            response = '\nError: please give a variable\n'
-        print response
-    
-    def complete_select(self, text, line, begidx, endidx):
-        "Autocomplete variable selection"
-        if not text:
-            completions = [ f
-                            for f in self.variables
-                            if f not in self.picked
-                            ]
-        else:
-            completions = [ f
-                            for f in self.variables
-                            if (f.startswith(text)
-                            and f not in self.picked)
-                            ]
-        return completions
-    
-    def do_floor(self, name):
-        "Step 2 part 1: Select floor variable"
-        if name and name in self.variables:
-            response = '\n  %s set as floor variable.\n' % name
-            self.floor_var = name
-            response += '\n  Now, please enter command '+\
-                '\'size\' followed by the minimum floor size\n  you would like to set. '+\
-                'To help, we\'ve provided you with a histogram \n  of %s values.\n' % name
-            print response
-            hist(self.d[name], title='Histogram of '+name)
-        elif name:
-            response = '\nError: could not find variable %s\n' % name
-            print response
-        else:
-            response = '\nError: please give a variable\n'
-            print response
-
-    def complete_floor(self, text, line, begidx, endidx):
-        "Autocomplete floor variable selection"
-        if not text:
-            completions = self.variables[:]
-        else:
-            completions = [ f
-                            for f in self.variables
-                            if f.startswith(text)
-                            ]
-        return completions
-
-    def do_size(self, size):
-        "Step 2 part 2: Set size of floor"
-        if float(size) > 0:
-            response = '\n  %s set as minimum floor\n' % str(size)
-            self.floor_size = float(size)
-            print response
-            self.do_next('')
-        elif size:
-            response = '\nError: size should not be 0\n'
-            print response
-        else:
-            response = '\nPlease set the size\n'
-            print response
-
-    def do_iterations(self, num):
-        "Set number of iterations"
-        if int(num) > 0:
-            response = '\n  %s set as number of iterations\n' % str(int(num))
-            self.iterations = int(num)
-        else:
-            response = '\nError: must set number of iterations\n'
-        print response
-
-    def do_method(self, line):
-        "Set method"
-        if line in ['equal votes', 'weighted', 'default']:
-            response = '\n  %s set as method\n' % line
-            self.method = line
-        else:
-            response = '\nError: must set method equal to \'equal votes\', '+\
-                '\'weighted\', or \'default\'\n'
-        print response
-
-    def do_weights(self, line):
-        "Set weights"
-        # this method has not been fleshed out
-        pass
-
-    def do_plot(self, line):
-        "Set whether to plot"
-        if line in ['true', 'True', 't', 'T', 'y', 'Y']:
-            response = '\n  The blobs map will be shown\n'
-            self.plot = True
-        elif line in ['false', 'False', 'f', 'F', 'n', 'N']:
-            response = '\n  The blobs map will NOT be shown\n'
-            self.plot = False
-        else:
-            response = '\nError: must set plot to \'True\' or \'False\'\n'
-        print response
-
-    def do_savedata(self, line):
-        "Set whether to save data"
-        if line in ['true', 'True', 't', 'T', 'y', 'Y']:
-            response = '\n  The blobs data will be saved to the root folder\n'
-            self.savedata = True
-        elif line in ['false', 'False', 'f', 'F', 'n', 'N']:
-            response = '\n  The blobs data will NOT be saved\n'
-            self.savedata = False
-        else:
-            response = '\nError: must set savedata to \'True\' or \'False\'\n'
-        print response
-
-
-    def do_next(self, line):
-        self.step += 1
-        if self.step == 2:
-                self.variables = variables
-                print '\n## Step 2: Set Blob Size'
-                print('  Enter command \'floor\' followed by the variable you want '+
-                    'to use\n  as the \'floor\' variable. Use tab key to autocomplete.\n')
-        if self.step == 3:
-            response = '\n## Step 3: Run Blobs\n  Ready to run blobs. Parameters:'+\
-                '\n  Variables: '
-            for v in self.picked:
-                response += '\n    %s' % v
-            response += '\n  Floor Variable: %s' % self.floor_var
-            response += '\n  Floor Size: %s' % str(self.floor_size)
-            response += '\n  Iterations: %s' % str(self.iterations)
-            response += '\n  Method: %s' % self.method
-            response += '\n  Weights: %s' % str(self.weights)
-            response += '\n  Plot: %s' % str(self.plot)
-            response += '\n  Save Data: %s' % str(self.savedata)
-            response += '\n\n  To run blobs using these parameters, enter command '+\
-                '\'run\'.\n  To change any of the parameters, enter one of the following '+\
-                '\n  commands, followed by the desired value:'+\
-                '\n    iterations, method, weights, plot, savedata'+\
-                '\n  To exit, enter command \'exit\'.\n'
-            print response
-        if self.step == 4:
-            response = '\n## Step 4: Cluster Blobs\n  Ready to assign blobs to clusters. '+\
-                'Please enter command \'cluster\' \n  followed by the average number of blobs '+\
-                'you want in each cluster.\n  A good value might be the number of blobs '+\
-                'divided by 10 or 20. Or\n  enter command \'exit\' to exit.\n'
-            print response
-        if self.step == 5:
-            self.do_exit('')
-    
-    def do_exit(self, line):
-        return True
-
-    def do_run(self, line):
-        self.r = blobs(self.picked, self.floor_size, floor_var=self.floor_var, 
-            iterations=self.iterations, method=self.method, weights=self.weights,
-            plot=self.plot, savedata=self.savedata)
-        self.do_next('')
-
-    def do_cluster(self, clusters):
-        if int(clusters) > 0:
-            Cluster_blobs(self.r['data'], blobs_per_cluster=int(clusters))
-            self.do_next('')
-        else:
-            print('Error: must set number of blobs per cluster')
-   
-
-def interface():
-    """
-    Example usage:
-    --------------
-
-    >>> interface()
-    (Cmd) select sanitation_per1000
-    (Cmd) select garbage_per1000
-    (Cmd) select rodents_per1000
-    (Cmd) next
-    (Cmd) floor pop
-    (Cmd) size 20000
-    (Cmd) savedata False
-    (Cmd) iterations 5
-    (Cmd) run
-    (Cmd) cluster 15
-    (Cmd) cluster 8
-    (Cmd) cluster 20
-    (Cmd) exit
-
-    """
-
-    print '\nThis is a command line interface for Blobs.'
-    print '\n## Step 1: Select Variables'
-    print('  Enter command \'select\' followed by a variable you want. Use tab key '+
-        '\n  to see options or autocomplete. When finished, enter command \'next\'.\n'+
-        '  At any time, you can enter command \'exit\' to exit.\n')
-    newUI = CmdBlobs()
-    newUI.clear_vars()  # clear any variables from a previous usage
-    newUI.cmdloop()
-
-
 # cluster the blobs data (k-means)
 class Cluster_blobs:
     """Use k-means to cluster blobs along the explanatory variables.
@@ -754,9 +535,8 @@ class Cluster_blobs:
     Parameters
     ----------
 
-    w               : pandas DataFrame
-                      should be a blobs data structure, accessible by calling 
-                        the "data" attribute of a Blobs() object
+    b               : Blobs object
+                      should be a Blobs object, accessible by calling Blobs()
 
     variables       : array
                       an array of variable names to use for clustering; by 
@@ -782,6 +562,19 @@ class Cluster_blobs:
     inertia         : float
                       the "inertia" for the final solution; lower is better
 
+    set_n_clusters(n_clusters): Will use n_clusters clusters and re-cluster.
+
+    set_blobs_per_cluster(blobs_per_cluster): Will use blobs_per_cluster and 
+                      re-cluster.
+
+    plot(variables=[]): Will plot the clusters. If a list of variables is 
+                      supplied, it will plot along the first three supplied. 
+                      The default list is all variables used to cluster. 
+
+    plot_map(variable=None): Will plot the clusters on a map. If a variable
+                      is supplied, the clusters will be colored by their 
+                      values along that variable. 
+
     Sample usage
     ------------
 
@@ -791,18 +584,19 @@ class Cluster_blobs:
 
     """
 
-    def __init__(self, v, variables=[], n_clusters=0, blobs_per_cluster=0):
+    def __init__(self, b, variables=[], n_clusters=0, blobs_per_cluster=0):
         """Initialize, run k-means, and plot."""
         # build list of variables on which to cluster (if not provided)
+        self.b = b
         if variables == []:
             self.cluster_vars = []
-            for c in v.columns:
+            for c in self.b.blobs_data.columns:
                 if c.find('_mean') > 0:
                     self.cluster_vars.append(c)
         else:
             self.cluster_vars = variables
 
-        self.x = np.array(v[self.cluster_vars])
+        self.x = np.array(self.b.blobs_data[self.cluster_vars])
         self.n_clusters = n_clusters
         self.blobs_per_cluster = blobs_per_cluster
         self._set_clusters()
@@ -961,6 +755,21 @@ class Cluster_blobs:
             self._set_clusters()
         else:
             print("Error: please provide blobs_per_cluster as an int")
+
+    def plot_map(self, variable=None):
+        # plot clusters on the map
+        plots = np.zeros(self.b.regions.shape)
+        if not variable:
+            for i in range(len(self.b.regions)):
+                plots[i] = self.assignments[self.b.regions[i]]
+        else:
+            for i in range(len(self.b.regions)):
+                plots[i] = self.centers.ix[self.assignments[self.b.regions[i]], variable]
+
+        maps.plot_choropleth(self.b.shp_link, plots, type='equal_interval',
+            title=('Clustered blobs from Census ' + self.b.level + 's'), 
+            k=30, figsize=(6,9))
+
 
 
 

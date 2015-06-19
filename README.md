@@ -70,9 +70,9 @@ cl = blobs.Cluster_blobs(b.blobs_data, blobs_per_cluster=10)
 
 # create blobs with a minimum of 30 tracts in each blob, and cluster
 b = blobs.Blobs(d, 'areas', 30)
-cl = blobs.Cluster_blobs(b.blobs_data, blobs_per_cluster=10)
+cl = blobs.Cluster_blobs(b, blobs_per_cluster=10)
 
-# have around 5 blobs per cluster
+# have around 3 blobs per cluster
 cl.set_n_clusters(3)
 
 # see blob assignments
@@ -94,7 +94,7 @@ d = blobs.Blobs_Data('Chicago Census.csv', 'block', 'blocks/CensusBlockTIGER2010
   '311_service_requests_vacant_and_abandoned_building', 
   '311_service_requests_rodent_baiting'])
 b = blobs.Blobs(d, 'pop', 10000)
-cl = blobs.Cluster_blobs(b.blobs_data, blobs_per_cluster=10)
+cl = blobs.Cluster_blobs(b, blobs_per_cluster=10)
 
 
 
@@ -105,9 +105,6 @@ cl = blobs.Cluster_blobs(b.blobs_data, blobs_per_cluster=10)
 # if you don't want to download data now, you can test out blobs using some included data
 # just run the following
 
-##########
-## FROM HERE
-##########
 import numpy as np
 import pandas as pd
 import pysal as ps
@@ -139,11 +136,8 @@ class bd:
 
 d = bd()
 b = blobs.Blobs(d, 'pop', 10000, iterations=1)
-cl = blobs.Cluster_blobs(b.blobs_data, blobs_per_cluster=10)
+cl = blobs.Cluster_blobs(b, blobs_per_cluster=10)
 
-##############
-## TO HERE
-##############
 
 ```
 
