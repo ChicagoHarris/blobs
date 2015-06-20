@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-dark.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
+
+    <title>Blobs by brettjgoldstein</title>
+  </head>
+
+  <body>
+
+    <header>
+      <div class="container">
+        <h1>Blobs</h1>
+        <h2>Smart Clustering at the Urban Level</h2>
+
+        <section id="downloads">
+          <a href="https://github.com/brettjgoldstein/blobs/zipball/master" class="btn">Download as .zip</a>
+          <a href="https://github.com/brettjgoldstein/blobs/tarball/master" class="btn">Download as .tar.gz</a>
+          <a href="https://github.com/brettjgoldstein/blobs" class="btn btn-github"><span class="icon"></span>View on GitHub</a>
+        </section>
+      </div>
+    </header>
+
+    <div class="container">
+      <section id="main_content">
+        <h1>
+<a id="blobs-smart-clustering-at-the-urban-level" class="anchor" href="#blobs-smart-clustering-at-the-urban-level" aria-hidden="true"><span class="octicon octicon-link"></span></a>Blobs: Smart Clustering at the Urban Level</h1>
+
+<p><em>v0.9: June 2015</em></p>
+
+<p>Spatial analytics is often hampered by the arbitrary choice of units, allowing local heterogeneity to obscure true patterns. Blobs is a new “smart clustering” technique that lets us use large quantities of open municipal data from <a href="http://plenar.io">Plenario</a> to redraw city maps to reflect facts on the ground, not administrative boundaries. </p>
+
+<p>The algorithm, built on the <em>max-p regions</em> implementation by researchers at Arizona State University, creates spatial clusters using only one input parameter, the minimum size of each cluster (defined in any of several ways). This nonparametric approach creates clusters that fit the data as closely as possible, fully isolating regions based only on the variables of interest.  </p>
+
+<p>This package allows a user to create "blobs" from start to finish using any dataset in Plenario. This involves the following:</p>
+
+<ul>
+<li>Downloading the relevant data from Plenario, at the desired unit of analysis (currently supports Census blocks and tracts)</li>
+<li>Building blobs from those units of analysis using counts of observations from any combination of the requested datasets</li>
+<li>Map the blobs solution along any variable</li>
+<li>Cluster blobs using k-means</li>
+<li>Save data on blobs to use in any research or administrative solution</li>
+</ul>
+
+<p>More information on the basic approach can be found in the <a href="http://www.pysal.org/library/region/maxp.html">documentation for the PySAL Maxp class</a>, upon which blobs is built. </p>
+
+<h2>
+<a id="dependencies" class="anchor" href="#dependencies" aria-hidden="true"><span class="octicon octicon-link"></span></a>Dependencies</h2>
+
+<ul>
+<li>pysal</li>
+<li>numpy</li>
+<li>pandas</li>
+<li>matplotlib.pyplot with mpl_toolkits.mplot3d</li>
+<li>sklearn.cluster</li>
+</ul>
+
+<h2>
+<a id="repository-structure" class="anchor" href="#repository-structure" aria-hidden="true"><span class="octicon octicon-link"></span></a>Repository Structure</h2>
+
+<h5>
+<a id="primary" class="anchor" href="#primary" aria-hidden="true"><span class="octicon octicon-link"></span></a>Primary</h5>
+
+<ul>
+<li>
+<code>blobs.py</code> - main module</li>
+<li>
+<code>maxp.py</code> - Updated version of the maxp.py module in pysal/region </li>
+<li>
+<code>smoothing.py</code> - adventures in spatial autocorrelation</li>
+</ul>
+
+<h5>
+<a id="secondary-samples-from-chicago" class="anchor" href="#secondary-samples-from-chicago" aria-hidden="true"><span class="octicon octicon-link"></span></a>Secondary (Samples from Chicago)</h5>
+
+<ul>
+<li>
+<code>blocks/</code> - Census block shapefiles (Chicago only)</li>
+<li>
+<code>tracts/</code> - Census tract shapefiles (Chicago only)</li>
+<li>
+<code>configure.py</code> - example code for building the shapefiles and associated files using Census data</li>
+<li>
+<code>Chicago Census.csv</code> - Census IDs and population data for blocks in Chicago</li>
+<li>
+<code>master311.csv</code> - sample Plenario data on Chicago 311 calls by Census tract</li>
+</ul>
+
+<h2>
+<a id="example-usage" class="anchor" href="#example-usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Example Usage</h2>
+
+<h6>
+<a id="using-chicago-data-included" class="anchor" href="#using-chicago-data-included" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using Chicago data, included</h6>
+
+<div class="highlight highlight-python"><pre><span class="pl-k">import</span> blobs
+
+<span class="pl-c">############</span>
+<span class="pl-c">## tract level</span>
+<span class="pl-c">############</span>
+
+<span class="pl-c"># download the data</span>
+d <span class="pl-k">=</span> blobs.Blobs_Data(<span class="pl-s"><span class="pl-pds">'</span>Chicago Census.csv<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>tract<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>tracts/CensusTractsTIGER2010.shp<span class="pl-pds">'</span></span>, 
+  <span class="pl-s"><span class="pl-pds">'</span>tractce10<span class="pl-pds">'</span></span>, [<span class="pl-s"><span class="pl-pds">'</span>crimes_2001_to_present<span class="pl-pds">'</span></span>, 
+  <span class="pl-s"><span class="pl-pds">'</span>311_service_requests_vacant_and_abandoned_building<span class="pl-pds">'</span></span>, 
+  <span class="pl-s"><span class="pl-pds">'</span>311_service_requests_rodent_baiting<span class="pl-pds">'</span></span>])
+
+<span class="pl-c"># create blobs (minimum population of 10,000 in each blob)</span>
+b <span class="pl-k">=</span> blobs.Blobs(d, <span class="pl-s"><span class="pl-pds">'</span>pop<span class="pl-pds">'</span></span>, <span class="pl-c1">10000</span>)
+
+<span class="pl-c"># cluster the blobs along similarities in the data</span>
+cl <span class="pl-k">=</span> blobs.Cluster_blobs(b.blobs_data, <span class="pl-smi">blobs_per_cluster</span><span class="pl-k">=</span><span class="pl-c1">10</span>)
+
+<span class="pl-c"># create blobs with a minimum of 30 tracts in each blob, and cluster</span>
+b <span class="pl-k">=</span> blobs.Blobs(d, <span class="pl-s"><span class="pl-pds">'</span>areas<span class="pl-pds">'</span></span>, <span class="pl-c1">30</span>)
+cl <span class="pl-k">=</span> blobs.Cluster_blobs(b, <span class="pl-smi">blobs_per_cluster</span><span class="pl-k">=</span><span class="pl-c1">10</span>)
+
+<span class="pl-c"># have around 3 blobs per cluster</span>
+cl.set_n_clusters(<span class="pl-c1">3</span>)
+
+<span class="pl-c"># see blob assignments</span>
+b.assignments
+
+<span class="pl-c"># see cluster assignments</span>
+cl.clusters2blobs
+
+<span class="pl-c"># plot blobs along one of the variables</span>
+b.plot_blobs(<span class="pl-s"><span class="pl-pds">'</span>crimes_2001_to_present<span class="pl-pds">'</span></span>)
+
+
+<span class="pl-c">############</span>
+<span class="pl-c">## block level</span>
+<span class="pl-c">############</span>
+
+d <span class="pl-k">=</span> blobs.Blobs_Data(<span class="pl-s"><span class="pl-pds">'</span>Chicago Census.csv<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>block<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>blocks/CensusBlockTIGER2010.shp<span class="pl-pds">'</span></span>, 
+  <span class="pl-s"><span class="pl-pds">'</span>geoid10<span class="pl-pds">'</span></span>, [<span class="pl-s"><span class="pl-pds">'</span>crimes_2001_to_present<span class="pl-pds">'</span></span>, 
+  <span class="pl-s"><span class="pl-pds">'</span>311_service_requests_vacant_and_abandoned_building<span class="pl-pds">'</span></span>, 
+  <span class="pl-s"><span class="pl-pds">'</span>311_service_requests_rodent_baiting<span class="pl-pds">'</span></span>])
+b <span class="pl-k">=</span> blobs.Blobs(d, <span class="pl-s"><span class="pl-pds">'</span>pop<span class="pl-pds">'</span></span>, <span class="pl-c1">10000</span>)
+cl <span class="pl-k">=</span> blobs.Cluster_blobs(b, <span class="pl-smi">blobs_per_cluster</span><span class="pl-k">=</span><span class="pl-c1">10</span>)
+
+
+
+<span class="pl-c">###########</span>
+<span class="pl-c">## instant examples</span>
+<span class="pl-c">###########</span>
+
+<span class="pl-c"># if you don't want to download data now, you can test out blobs using some included data</span>
+<span class="pl-c"># just run the following</span>
+
+<span class="pl-k">import</span> numpy <span class="pl-k">as</span> np
+<span class="pl-k">import</span> pandas <span class="pl-k">as</span> pd
+<span class="pl-k">import</span> pysal <span class="pl-k">as</span> ps
+shp_link <span class="pl-k">=</span> <span class="pl-s"><span class="pl-pds">'</span>tracts/CensusTractsTIGER2010.shp<span class="pl-pds">'</span></span>
+dbf <span class="pl-k">=</span> ps.open(<span class="pl-s"><span class="pl-pds">'</span>tracts/CensusTractsTIGER2010.dbf<span class="pl-pds">'</span></span>)
+cols <span class="pl-k">=</span> np.array([dbf.by_col(col) <span class="pl-k">for</span> col <span class="pl-k">in</span> dbf.header]).T
+df <span class="pl-k">=</span> pd.DataFrame(cols)
+df.columns <span class="pl-k">=</span> dbf.header
+df.columns <span class="pl-k">=</span> df.columns.map(<span class="pl-k">lambda</span> <span class="pl-smi">x</span>: x.lower())
+df.commarea <span class="pl-k">=</span> df.commarea.astype(<span class="pl-s"><span class="pl-pds">'</span>int<span class="pl-pds">'</span></span>)
+df[<span class="pl-s"><span class="pl-pds">'</span>order<span class="pl-pds">'</span></span>] <span class="pl-k">=</span> df.index
+w<span class="pl-k">=</span>ps.open(<span class="pl-s"><span class="pl-pds">'</span>tracts/CensusTractsTIGER2010.gal<span class="pl-pds">'</span></span>).read()
+init_calls <span class="pl-k">=</span> pd.read_csv(<span class="pl-s"><span class="pl-pds">'</span>master311.csv<span class="pl-pds">'</span></span>, <span class="pl-smi">dtype</span><span class="pl-k">=</span><span class="pl-c1">object</span>)
+<span class="pl-k">for</span> c <span class="pl-k">in</span> init_calls.columns[<span class="pl-c1">1</span>:]:
+    init_calls[c] <span class="pl-k">=</span> init_calls[c].astype(<span class="pl-s"><span class="pl-pds">'</span>float<span class="pl-pds">'</span></span>)
+
+<span class="pl-c"># format data and merge on shapefile IDs</span>
+ordered_tracts <span class="pl-k">=</span> pd.DataFrame(df.loc[:,[<span class="pl-s"><span class="pl-pds">'</span>tractce10<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>commarea<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>order<span class="pl-pds">'</span></span>]])
+calls <span class="pl-k">=</span> pd.merge(init_calls, ordered_tracts, <span class="pl-smi">how</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>right<span class="pl-pds">'</span></span>, <span class="pl-smi">left_on</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>tractID<span class="pl-pds">'</span></span>, 
+    <span class="pl-smi">right_on</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>tractce10<span class="pl-pds">'</span></span>, <span class="pl-smi">sort</span><span class="pl-k">=</span><span class="pl-c1">False</span>).fillna(<span class="pl-c1">0</span>).sort([<span class="pl-s"><span class="pl-pds">'</span>order<span class="pl-pds">'</span></span>])
+calls <span class="pl-k">=</span> calls.drop([<span class="pl-s"><span class="pl-pds">'</span>order<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>commarea<span class="pl-pds">'</span></span>],<span class="pl-c1">1</span>)
+
+<span class="pl-k">class</span> <span class="pl-en">bd</span>:
+  data <span class="pl-k">=</span> calls
+  w <span class="pl-k">=</span> w
+  shp_link <span class="pl-k">=</span> shp_link
+  <span class="pl-c1">id</span> <span class="pl-k">=</span> <span class="pl-s"><span class="pl-pds">'</span>tractce10<span class="pl-pds">'</span></span>
+  level <span class="pl-k">=</span> <span class="pl-s"><span class="pl-pds">'</span>tract<span class="pl-pds">'</span></span>
+
+d <span class="pl-k">=</span> bd()
+b <span class="pl-k">=</span> blobs.Blobs(d, <span class="pl-s"><span class="pl-pds">'</span>pop<span class="pl-pds">'</span></span>, <span class="pl-c1">10000</span>, <span class="pl-smi">iterations</span><span class="pl-k">=</span><span class="pl-c1">1</span>)
+cl <span class="pl-k">=</span> blobs.Cluster_blobs(b, <span class="pl-smi">blobs_per_cluster</span><span class="pl-k">=</span><span class="pl-c1">10</span>)
+
+</pre></div>
+      </section>
+    </div>
+
+              <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-64325541-1");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+  </body>
+</html>
