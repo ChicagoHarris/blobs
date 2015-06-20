@@ -33,7 +33,7 @@ Repository Structure
 ##### Primary
 
 * `blobs.py` - main module
-* `maxp.py` - Updated version of the maxp.py module in pysal/region
+* `maxp.py` - Updated version of the maxp.py module in pysal/region 
 * `smoothing.py` - adventures in spatial autocorrelation
 
 ##### Secondary (Samples from Chicago)
@@ -76,7 +76,7 @@ cl = blobs.Cluster_blobs(b, blobs_per_cluster=10)
 cl.set_n_clusters(3)
 
 # see blob assignments
-b.r.assignments
+b.assignments
 
 # see cluster assignments
 cl.clusters2blobs
