@@ -76,7 +76,7 @@ cl = blobs.Cluster_blobs(b, blobs_per_cluster=10)
 cl.set_n_clusters(3)
 
 # see blob assignments
-b.assignments
+cl.assignments
 
 # see cluster assignments
 cl.clusters2blobs
