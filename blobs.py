@@ -762,13 +762,15 @@ class Cluster_blobs:
         if not variable:
             for i in range(len(self.b.regions)):
                 plots[i] = self.assignments[self.b.regions[i]]
+            maps.plot_choropleth(self.b.shp_link, plots, type='unique_values',
+                title=('Clustered blobs from Census ' + self.b.level + 's'), 
+                k=30, figsize=(6,8))
         else:
             for i in range(len(self.b.regions)):
                 plots[i] = self.centers.ix[self.assignments[self.b.regions[i]], variable]
-
-        maps.plot_choropleth(self.b.shp_link, plots, type='equal_interval',
-            title=('Clustered blobs from Census ' + self.b.level + 's'), 
-            k=30, figsize=(6,9))
+            maps.plot_choropleth(self.b.shp_link, plots, type='equal_interval',
+                title=('Clustered blobs from Census ' + self.b.level + 's'), 
+                k=30, figsize=(6,9))
 
 
 
