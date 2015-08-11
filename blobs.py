@@ -1,5 +1,7 @@
 ### blobs code, v0.9
-### contributors: jgiuffrida@uchicago.edu
+### contributors: 
+### Jonathan Giuffrida: jgiuffrida@uchicago.edu
+### Jiajun Shen: jiajun@uchicago.edu
 ### 6/18/15
 
 import pysal as ps
@@ -12,7 +14,9 @@ import datetime
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.cluster import KMeans
 import sys
-
+from shapely.geometry import mapping, Polygon
+import Polygon as pl
+import fiona
 
 # histogram helper function
 def hist(data, title='Histogram of Values', bins=20, range=None):
@@ -311,6 +315,12 @@ class Blobs:
 
     r           : PySAL MaxP instance
                   The best solution found.
+    
+    contours    : List of Shapely.Polygon instances
+                  This is the contours of all the blobs. Notice that the number of contours might be larger
+                  than the number of blobs since some blobs contain two contours ("Island situation")l
+
+
 
     plot_blobs(variable=None, k=None): method
                   Will plot the blobs. If a variable name is entered, will plot
@@ -326,6 +336,9 @@ class Blobs:
                      However, this method may return a different solution 
                      because of randomness. 
 
+    generate_contours(): Generate contours for blobs after building blobs.
+
+    generate_shpfile(filename): Generate shape file based on the blobs.
 
     Sample usage
     ------------
@@ -364,7 +377,7 @@ class Blobs:
         self.regions = None
         self.blobs_data = None
         self.build_blobs()
-
+        self.generate_contours()
 
     def _get_floor_var(self):
         return self.d['pop']
@@ -527,6 +540,39 @@ class Blobs:
     def retrieve_raw_data(self):
         pass  # todo
 
+    def generate_contours(self):
+        allPoly = ps.open(self.shp_link)
+        blobPoly = [None for i in range(len(np.unique(self.regions)))]
+        for i in range(len(allPoly)):
+            if(blobPoly[int(self.regions[i])] == None):
+                blobPoly[int(self.regions[i])] = pl.Polygon(allPoly[i].vertices)
+            else:
+                blobPoly[int(self.regions[i])] = blobPoly[int(self.regions[i])] + pl.Polygon(allPoly[i].vertices)
+        outputPoly = []
+        for poly in blobPoly:
+            for i in range(len(poly)):
+                outputPoly.append(Polygon(poly.contour(i)))
+        self.contours = outputPoly
+    
+    def generate_shapefile(self, filename='./blob_shapefile.shp'):
+        self._generate_shapefile(self.contours, filename)
+
+    def _generate_shapefile(self, polygons, filename):
+        """Generate a shape file given a list of polygons.""" 
+        # Define a polygon feature geometry with one attribute
+        schema = {
+            'geometry': 'Polygon',
+            'properties': {'id': 'int'}
+        }
+        
+        # write a new Shapefile
+        with fiona.open(filename, 'w', 'ESRI Shapefile', schema) as c:
+            for i in range(len(polygons)):
+                c.write({
+                    'geometry': mapping(polygons[i]),
+                    'properties': {'id': i},
+                }) 
+        
 
 # cluster the blobs data (k-means)
 class Cluster_blobs:
@@ -771,7 +817,5 @@ class Cluster_blobs:
             maps.plot_choropleth(self.b.shp_link, plots, type='equal_interval',
                 title=('Clustered blobs from Census ' + self.b.level + 's'), 
                 k=30, figsize=(6,9))
-
-
 
 
