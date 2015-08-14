@@ -26,6 +26,11 @@ Dependencies
 * pandas
 * matplotlib.pyplot with mpl_toolkits.mplot3d
 * sklearn.cluster
+* shapely
+* polygon
+* fiona
+
+Prerequisite packages can be installed using `install.sh`.
 
 Repository Structure
 ------------
