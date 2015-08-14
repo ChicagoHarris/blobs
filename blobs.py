@@ -2,7 +2,7 @@
 ### contributors: 
 ### Jonathan Giuffrida: jgiuffrida@uchicago.edu
 ### Jiajun Shen: jiajun@uchicago.edu
-### 6/18/15
+### 8/14/15
 
 import pysal as ps
 import numpy as np
@@ -471,9 +471,34 @@ class Blobs:
                     np.std(data[:,v])) * np.sqrt(self.weights[v])
             return x
 
-    def plot_blobs(self, variable=None, k=None):
+    def plot_blobs(self, blob_shp=None, variable=None, k=None, mapType=None):
         # show blobs we created
-        if not variable:
+        if blob_shp:
+            k = len(self.contours)
+            if not variable:
+                variable = 'blob ID'
+                data = np.arange(len(self.contours))
+                mapType = 'unique_values'
+            else:
+                data = []
+                try:
+                    a = self.blobs_data[variable]
+                except:
+                    try:
+                        a = self.blobs_data[variable + '_mean']
+                        variable = variable + '_mean'
+                    except:
+                        print("invalid variable name; variables are the following: \n" + 
+                            ', '.join(self.blobs_data.columns))
+                        return False
+                for i in range(len(self.contours)):
+                    try:
+                        data.append(self.blobs_data.ix[self.contours_to_blobs[i],variable])
+                    except KeyError:
+                        data.append(0)
+                data = np.array(data)
+                mapType = 'quantiles'
+        elif not variable:
             data = self.regions
             variable = 'blob ID'
         else:
@@ -497,10 +522,18 @@ class Blobs:
 
         if not k:
             k = self.r.p
-        print('  Plotting...'),
-        maps.plot_choropleth(self.shp_link, data, type='quantiles',
+        if not mapType:
+            mapType = 'quantiles'
+        print('  Plotting...')
+        map_shp = None
+        
+        if blob_shp:
+            map_shp = blob_shp
+        else:
+            map_shp = self.shp_link
+        maps.plot_choropleth(map_shp, data, type=mapType,
             title='Blobs from Census ' + self.level + 's\nby ' + variable + 
-                ' (' + str(self.r.p)+' blobs)', k=k, figsize=(6,9))
+                ' (' + str(self.r.p)+' blobs)', k=k, figsize=(6,8))
         print('\r             \n')
 
     def build_data_structure(self, savedata=True):
@@ -549,10 +582,15 @@ class Blobs:
             else:
                 blobPoly[int(self.regions[i])] = blobPoly[int(self.regions[i])] + pl.Polygon(allPoly[i].vertices)
         outputPoly = []
+        contours_to_blobs = []
+        counter = 0
         for poly in blobPoly:
             for i in range(len(poly)):
                 outputPoly.append(Polygon(poly.contour(i)))
+                contours_to_blobs.append(counter)
+            counter+=1
         self.contours = outputPoly
+        self.contours_to_blobs = contours_to_blobs
     
     def generate_shapefile(self, filename='./blob_shapefile.shp'):
         self._generate_shapefile(self.contours, filename)
@@ -802,10 +840,17 @@ class Cluster_blobs:
         else:
             print("Error: please provide blobs_per_cluster as an int")
 
-    def plot_map(self, variable=None):
+    def plot_map(self, variable=None, blob_shp=None):
         # plot clusters on the map
         plots = np.zeros(self.b.regions.shape)
-        if not variable:
+        if blob_shp:
+            cluster = np.zeros(len(self.b.contours))
+            for i in range(len(self.b.contours)):
+                cluster[i] = self.assignments[self.b.contours_to_blobs[i]]
+            maps.plot_choropleth(blob_shp, cluster, type='unique_values',
+                title=('Clustered blobs from Census ' + self.b.level + 's'), 
+                k=30, figsize=(6,8))
+        elif not variable:
             for i in range(len(self.b.regions)):
                 plots[i] = self.assignments[self.b.regions[i]]
             maps.plot_choropleth(self.b.shp_link, plots, type='unique_values',
