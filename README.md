@@ -30,7 +30,9 @@ Dependencies
 * polygon
 * fiona
 
-Prerequisite packages can be installed using `install.sh`.
+Prerequisite packages can be installed using `install.sh`. You can install the packages by:
+
+    [sudo] bash install.sh
 
 Repository Structure
 ------------
