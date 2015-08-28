@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from pysal.contrib.viz import mapping as maps
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import time
 import datetime
 from mpl_toolkits.mplot3d import Axes3D
@@ -363,7 +364,7 @@ class Blobs:
         self.vars_to_use = vars_to_use
         if self.vars_to_use == []:
             self.vars_to_use = [v for v in self.d.columns if v not in \
-            ['ID', 'stateID', 'countyID', 'tractID', 'pop', bd.id]]
+            ['ID', 'stateID', 'countyID', 'tractID', 'pop', bd.id, 'tract_bloc', 'Pop']]
         print self.vars_to_use
         self.iterations = iterations
         self.method = method
@@ -380,7 +381,7 @@ class Blobs:
         self.generate_contours()
 
     def _get_floor_var(self):
-        return self.d['pop']
+        return self.d[self.floor_var]
 
     def build_blobs(self):
         """ Method to create a blobs solution.
@@ -439,7 +440,7 @@ class Blobs:
             ' tracts per blob)')
         self.r = r
         # prep for plotting
-        ids=np.array(self.d['tractce10']).astype(str)
+        ids=np.array(self.d[self.id_var]).astype(str)
         if self.plot_values:
             self.r.sort_regions(method='mean')  # sort regions by intensity of the variable
         regions=np.empty(self.d.shape[0])
@@ -531,9 +532,11 @@ class Blobs:
             map_shp = blob_shp
         else:
             map_shp = self.shp_link
+        #C = np.load("./colorMapC.npy")
+        #my_map = mpl.colors.ListedColormap(C/255.0)
         maps.plot_choropleth(map_shp, data, type=mapType,
-            title='Blobs from Census ' + self.level + 's\nby ' + variable + 
-                ' (' + str(self.r.p)+' blobs)', k=k, figsize=(6,8))
+            cmap = 'hot_r', title='Blobs from Census ' + self.level + 's\nby ' + variable + 
+                ' (' + str(self.r.p)+' blobs)', k=k, figsize=(12,16))
         print('\r             \n')
 
     def build_data_structure(self, savedata=True):
