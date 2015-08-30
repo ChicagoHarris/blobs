@@ -1,12 +1,13 @@
-cd ..
 # Import required libraries and assign root directory of blobs to root
+root = "/home/jiajun/Desktop/blobs"
+import os
+os.chdir(root)
+print os.getcwd()
 import blobs
 import numpy as np
 import pandas as pd
 import pysal as ps
 import matplotlib as mpl
-import os
-root = os.getcwd()
 
 shp_link = root + '/blocks/CensusBlockTIGER2010.shp'
 dbf = ps.open(root + '/blocks/CensusBlockTIGER2010.dbf')
@@ -43,14 +44,14 @@ for i in range(24):
                              right_on = 'geoid10', sort=False).fillna(0).sort(['order'])
     hourlyTable = hourlyTable.drop(['order', 'hour'],1)
     crime_hour_tables.append(hourlyTable)
-
-for i in range(1):
-    class bd:
-      data = crime_hour_tables[i]
-      w = w
-      shp_link = shp_link
-      id = 'geoid10'
-      level = 'block'
-    d = bd()
-    b = blobs.Blobs(d, 'Pop', 200, iterations=1)
-    b.generate_shapefile(filename='blob_hour_%d.shp'%i)
+i = 0
+print i
+class bd:
+  data = crime_hour_tables[i]
+  w = w
+  shp_link = shp_link
+  id = 'geoid10'
+  level = 'block'
+d = bd()
+b = blobs.Blobs(d, 'Pop', 1000, plot=False, iterations=1)
+b.generate_shapefile(filename='blob_hour_test_0_1000.shp')
