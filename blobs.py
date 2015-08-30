@@ -441,6 +441,8 @@ class Blobs:
         self.r = r
         # prep for plotting
         ids=np.array(self.d[self.id_var]).astype(str)
+        if self.level == 'block':
+            ids = map(str,np.arange(self.d.shape[0]))
         if self.plot_values:
             self.r.sort_regions(method='mean')  # sort regions by intensity of the variable
         regions=np.empty(self.d.shape[0])
