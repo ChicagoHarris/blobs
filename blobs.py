@@ -534,9 +534,12 @@ class Blobs:
             map_shp = blob_shp
         else:
             map_shp = self.shp_link
-        #C = np.load("./colorMapC.npy")
-        #my_map = mpl.colors.ListedColormap(C/255.0)
-        maps.plot_choropleth(map_shp, data, type=mapType,
+        if mapType == 'unique_values':
+            maps.plot_choropleth(map_shp, data, type=mapType, cmap = 'Paired',
+            title='Blobs from Census ' + self.level + 's\nby ' + variable +
+                ' (' + str(self.r.p)+' blobs)', k=k, figsize=(12,16))
+        else:
+            maps.plot_choropleth(map_shp, data, type=mapType,
             cmap = 'hot_r', title='Blobs from Census ' + self.level + 's\nby ' + variable + 
                 ' (' + str(self.r.p)+' blobs)', k=k, figsize=(12,16))
         print('\r             \n')
