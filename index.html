@@ -4,27 +4,26 @@
     <meta charset='utf-8'>
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
 
-    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
-    <link rel="stylesheet" type="text/css" href="stylesheets/github-dark.css" media="screen">
-    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
-
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <script src="javascripts/scale.fix.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">    
     <title>Blobs by brettjgoldstein</title>
   </head>
 
   <body>
+      <header>
+        <h1 class="header">Blobs</h1>
+        <p class="header">Understanding the data and model</p>
 
-    <header>
-      <div class="container">
-        <h1>Blobs</h1>
-        <h2>Smart Clustering at the Urban Level</h2>
+        <ul>
+          <li><a class="buttons github" href="https://github.com/ChicagoHarris/Weather-and-Crime">View On GitHub</a></li>
+        </ul>
 
-        <section id="downloads">
-          <a href="https://github.com/brettjgoldstein/blobs/zipball/master" class="btn">Download as .zip</a>
-          <a href="https://github.com/brettjgoldstein/blobs/tarball/master" class="btn">Download as .tar.gz</a>
-          <a href="https://github.com/brettjgoldstein/blobs" class="btn btn-github"><span class="icon"></span>View on GitHub</a>
-        </section>
-      </div>
-    </header>
+        <p class="header">This project is maintained by <a class="header name" href="https://github.com/ChicagoHarris">ChicagoHarris</a></p>
+
+
+      </header>
 
     <div class="container">
       <section id="main_content">
@@ -33,9 +32,9 @@
 
 <p><em>v0.9: June 2015</em></p>
 
-<p>Spatial analytics is often hampered by the arbitrary choice of units, allowing local heterogeneity to obscure true patterns. Blobs is a new “smart clustering” technique that lets us use large quantities of open municipal data from <a href="http://plenar.io">Plenario</a> to redraw city maps to reflect facts on the ground, not administrative boundaries. </p>
+<p>Spatial analytics is often hampered by the arbitrary choice of units, allowing local heterogeneity to obscure true patterns. Blobs is a new “smart clustering” technique that lets us use large quantities of to redraw city maps to reflect facts on the ground, not administrative boundaries. The current use cases generally center on open municipal data from <a href="http://plenar.io">Plenario</a> but the technique is able to operate on any type of geocoded data.</p>
 
-<p>The algorithm, built on the <em>max-p regions</em> implementation by researchers at Arizona State University, creates spatial clusters using only one input parameter, the minimum size of each cluster (defined in any of several ways). This nonparametric approach creates clusters that fit the data as closely as possible, fully isolating regions based only on the variables of interest.  </p>
+<p>The algorithm, built on the <a href="http://geog.sdsu.edu/Research/Projects/IPC/publication/MaxP_authored.pdf">max-p </a> regions implementation by researchers at Arizona State University, creates spatial clusters using only one input parameter, the minimum size of each cluster (defined in any of several ways). This nonparametric approach creates clusters that fit the data as closely as possible, fully isolating regions based only on the given variables of interest.  </p>
 
 <p>This package allows a user to create "blobs" from start to finish using any dataset in Plenario. This involves the following:</p>
 
@@ -48,6 +47,16 @@
 </ul>
 
 <p>More information on the basic approach can be found in the <a href="http://www.pysal.org/library/region/maxp.html">documentation for the PySAL Maxp class</a>, upon which blobs is built. </p>
+
+<h2>
+<a id="Using Blobs" class="anchor" href="#usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using Blobs</h2>
+
+<ul>
+<li><strong>Stability</strong>: The dynamic nature of the blob growth makes each run of blob creation unique. Consequently the boundries of each blob are not inherently stable. Each iteration of blob creation produces</li>
+<li><strong>Geographies</strong>: The max-p algorithm requires that all of the small geographic areas (census tracts etc.) be contiguous or at least connected with each other. This requires that the user join any islands to the "mainland". A <a href="https://github.com/ChicagoHarris/blobs/blob/master/tutorials/Islands.ipynb">Python notebook</a> that enables this is included in the tutorials section of the GitHub page.</li>
+<li><strong>External Data</strong>: Blobs was initially written to analyze data from the City of Chicago. It is able to process data from any other region as long as shapefiles exist for that region and the user has data keyed by a geographic identifier that is also in the shapefile. See one of the generalized notebooks in the <a href="https://github.com/ChicagoHarris/blobs/tree/master/tutorials">tutorials folder </a>for an example of how to run blobs on your own data.</li>
+</ul>
+
 
 <h2>
 <a id="dependencies" class="anchor" href="#dependencies" aria-hidden="true"><span class="octicon octicon-link"></span></a>Dependencies</h2>
