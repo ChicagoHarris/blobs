@@ -54,7 +54,8 @@
 <ul>
 <li><strong>Stability</strong>: The dynamic nature of the blob growth makes each run of blob creation unique. Consequently the boundries of each blob are not inherently stable. Each iteration of blob creation produces</li>
 <li><strong>Geographies</strong>: The max-p algorithm requires that all of the small geographic areas (census tracts etc.) be contiguous or at least connected with each other. This requires that the user join any islands to the "mainland". A <a href="https://github.com/ChicagoHarris/blobs/blob/master/tutorials/Islands.ipynb">Python notebook</a> that enables this is included in the tutorials section of the GitHub page.</li>
-<li><strong>External Data</strong>: Blobs was initially written to analyze data from the City of Chicago. It is able to process data from any other region as long as shapefiles exist for that region and the user has data keyed by a geographic identifier that is also in the shapefile. See one of the generalized notebooks in the <a href="https://github.com/ChicagoHarris/blobs/tree/master/tutorials">tutorials folder </a>for an example of how to run blobs on your own data.</li>
+<li><strong>External Data</strong>: Blobs was initially written to analyze data from the City of Chicago. It is able to process data from any other region as long as shapefiles exist for that region and the user has data keyed by a geographic identifier that is also in the shapefile. See one of the generalized notebooks in the <a href="https://github.com/ChicagoHarris/blobs/tree/master/tutorials">tutorials folder </a> or below for examples of how to run blobs on your own data.</li>
+<li><strong>Minimums</strong>: Blobs can be made of different sizes and types. This can be controlled in the constructor of the Blobs class. It takes in a floor variable and a floor number that require each blob has at least the minimum of the given variable. This can also be set as areas to create blobs with a floor number of components.</li>
 </ul>
 
 
@@ -101,7 +102,44 @@
 </ul>
 
 <h2>
-<a id="example-usage" class="anchor" href="#example-usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Example Usage</h2>
+<a id="loading-data" class="anchor" href="#loading-data" aria-hidden="true"><span class="octicon octicon-link"></span></a>Inputting Data into Blobs</h2>
+
+<h5>
+<a id="blobs-data" class="anchor" href="#blobs-data" aria-hidden="true"><span class="octicon octicon-link"></span></a>Preset Blobs class</h5>
+
+<p>The custom blob data class is a way for users to directly pull Chicago-based data from <a href="http://plenar.io">Plenario</a> through pre-determined calls in the method described in detail in the class and summarized below.</p>
+
+<ul>
+<li> Use in example below: d = Blobs_Data('Chicago Census.csv', 'block', 'blocks/CensusBlockTIGER2010.shp', 'geoid10', 
+          ['crimes_2001_to_present', '311_service_requests_rodent_baiting'])</li>
+<li> Generalized example: d = Blobs_Data(custom csv keyed by geographic area, geographic area, path to shapefile, key of geoid in shapefile, list of datasets used from Plenario)</li>
+</ul>
+
+<h5>
+<a id="custom-data" class="anchor" href="#custom-data" aria-hidden="true"><span class="octicon octicon-link"></span></a>Custom Data</h5>
+<p>Blobs allows for custom data outside of <a href="http://plenar.io">Plenario</a> to be used as well. The data needs to be in the Blobs Data class form shown below:</p>
+
+<code>class bd:<br>
+  data = calls #Dataframe keyed by id below, data will build blobs<br>
+  w = w #Weight created from process described below<br>
+  shp_link = shp_link #link to shapefile<br>
+  id = 'tractce10' #geoid used to group data<br>
+  level = 'tract' #unit of analysis (only used in creating title for </code>
+
+<p>A n<a href="https://github.com/ChicagoHarris/blobs/blob/ld-virginia/tutorials/Blob%20Example-Virginia.ipynb">notebook</a> is included to help include custom data. It assume that the data has already been grouped by the correct geoid. The user should only have to input the paths below:</p>
+
+<ul>
+<li>Shape/dbf file: Shapefile components of complete region</li>
+<li>Datafile: Custom data keyed on appropriate region.</li>
+<li>Weight file: Custom weight file created through island process described below.</li>
+<li>Shape and Data GeoId: Names of the geographic component that was used to group data in the custom file and in the shapefile. This enables a proper join.</li>
+</ul>
+
+<h5>
+<a id="shapefiles" class="anchor" href="#shapefiles" aria-hidden="true"><span class="octicon octicon-link"></span></a>Weighting shapefiles</h5>
+
+<p>Blobs requires that all geographic units are contigious so that solutions can take the entire map as one into account to better satisfy floor requirements. A <a href="https://github.com/ChicagoHarris/blobs/blob/master/tutorials/Islands.ipynb">Python notebook</a> has been provided to help join the island. It takes in a shapefile, reads rook weights and identifies islands. The islands are then joined by increasing a KNN join until one unit on a island joins the mainland. This continues until there are no islands and the results is save into user-specified .gal file that can be loaded into the blobs.</p>
+
 
 <h6>
 <a id="using-chicago-data-included" class="anchor" href="#using-chicago-data-included" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using Chicago data, included</h6>
