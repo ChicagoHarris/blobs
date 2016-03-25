@@ -12,6 +12,7 @@
   </head>
 
   <body>
+    <div class="wrapper">
       <header>
         <h1 class="header">Blobs</h1>
         <p class="header">Understanding the data and model</p>
@@ -124,7 +125,7 @@
   w = w #Weight created from process described below<br>
   shp_link = shp_link #link to shapefile<br>
   id = 'tractce10' #geoid used to group data<br>
-  level = 'tract' #unit of analysis (only used in creating title for </code>
+  level = 'tract' #unit of analysis (only used in creating title for charts)</code>
 
 <p>A <a href="https://github.com/ChicagoHarris/blobs/blob/ld-virginia/tutorials/Blob%20Example-Virginia.ipynb">notebook</a> is included to help include custom data. It assume that the data has already been grouped by the correct geoid. The user should only have to input the paths below:</p>
 
@@ -132,7 +133,7 @@
 <li>Shape/dbf file: Shapefile components of complete region</li>
 <li>Datafile: Custom data keyed on appropriate region.</li>
 <li>Weight file: Custom weight file created through island process described below.</li>
-<li>Shape and Data GeoId: Names of the geographic component that was used to group data in the custom file and in the shapefile. This enables a proper join.</li>
+<li>Shape and Data GeoID: Names of the geographic component that was used to group data in the custom file and in the shapefile. This enables a proper join.</li>
 </ul>
 
 <h5>
@@ -142,7 +143,7 @@
 
 
 <h6>
-<a id="using-chicago-data-included" class="anchor" href="#using-chicago-data-included" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using Chicago data, included</h6>
+<a id="using-chicago-data-included" class="anchor" href="#using-chicago-data-included" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using included Chicago data</h6>
 
 <div class="highlight highlight-python"><pre><span class="pl-k">import</span> blobs
 
